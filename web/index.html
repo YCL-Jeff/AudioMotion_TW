@@ -257,7 +257,7 @@ const SCHEMA = {
 const DEFAULTS = {
   channelLayout: 'single', gradientLeft: 'classic', gradientRight: 'prism', splitGradient: false, mirror: 0, blendMode: 'screen',
   mode: 2, colorMode: 'gradient', barSpace: 0.1, ledBars: false, trueLeds: true, lumiBars: false, alphaBars: false,
-  outlineBars: false, roundBars: false, fillAlpha: 1, lineWidth: 0, reflexRatio: 0.05, reflexAlpha: 0.2, bgAlpha: 1, showBgColor: true,
+  outlineBars: false, roundBars: false, fillAlpha: 1, lineWidth: 0, reflexRatio: 0.05, reflexAlpha: 0.2, bgAlpha: 1, showBgColor: false,
   showPeaks: true, peakLine: false, fadePeaks: false, peakHoldTime: 500, peakFadeTime: 750,
   showScaleX: true, showScaleY: false, noteLabels: false, showFPS: false,
   radial: false, radialInvert: false, radius: 0.3, spinSpeed: 0,
@@ -332,6 +332,7 @@ const cfg = { ...DEFAULTS };
 try { Object.assign(cfg, JSON.parse(store.get('cfg2') || '{}')); } catch {}
 if (cfg.channelLayout === undefined) cfg.channelLayout = 'single';
 // 一次性遷移:新預設為「無外框」與「自動位置」
+if (!store.get('mig4')) { cfg.showBgColor = false; store.set('mig4', '1'); store.set('cfg2', JSON.stringify(cfg)); }   // 預設不畫背景色
 if (!store.get('mig3')) { if (cfg.meterPos === 'bottom') cfg.meterPos = 'auto'; cfg.vuBezel = 'none'; store.set('mig3', '1'); store.set('cfg2', JSON.stringify(cfg)); }
 const saveCfg = () => store.set('cfg2', JSON.stringify(cfg));
 
