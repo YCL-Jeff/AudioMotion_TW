@@ -1203,11 +1203,22 @@ $('meter').addEventListener('click', () => { if (Date.now() < suppUntil) return;
 (() => {
   let st = null;
   document.addEventListener('pointerdown', e => {
-    st = (rzOn || $('panel').classList.contains('show') || e.target.closest('#panel,#rz,button,#gear,#tap,#go')) ? null : { x: e.clientX, y: e.clientY, t: performance.now(), id: e.pointerId };
+    st = (rzOn || $('panel').classList.contains('show') || e.target.closest('#panel,#rz,button,#gear,#tap,#go')) ? null : { x: e.clientX, y: e.clientY, t: performance.now(), id: e.pointerId, reg: e.target.closest('#meter') ? 'm' : 's' };
   }, true);
   document.addEventListener('pointerup', e => {
-    if (!st || e.pointerId !== st.id) return; const dx = e.clientX - st.x, dy = e.clientY - st.y, dt = performance.now() - st.t; st = null;
-    if (Math.abs(dx) < 70 || Math.abs(dy) > Math.abs(dx) * 0.5 || dt > 700) return;
+    if (!st || e.pointerId !== st.id) return; const dx = e.clientX - st.x, dy = e.clientY - st.y, dt = performance.now() - st.t, st0 = st; st = null;
+    if (dt > 700) return;
+    if (Math.abs(dy) >= 70 && Math.abs(dx) < Math.abs(dy) * 0.5) {   // 上下滑:兩區分開 —— 電平表區換 VU 面板 / 電平表顏色;頻譜區換頻譜配色
+      suppUntil = Date.now() + 450; const dir = dy < 0 ? 1 : -1, cyc = (arr, cur) => arr[((arr.indexOf(cur) < 0 ? 0 : arr.indexOf(cur)) + dir + arr.length) % arr.length];
+      if (st0.reg === 'm' || isFull(cfg)) {
+        if (vuShown(cfg)) { const f = cyc(['cream', 'amber', 'paperwhite', 'iceblue', 'night', 'blackwhite', 'blackorange'], cfg.vuFace); set('vuFace', f); toast('VU 面板:' + ({ cream: '暖米白', amber: '琥珀', paperwhite: '白底 黑紅字', iceblue: '冰藍背光', night: '夜光藍', blackwhite: '黑底 白紅字', blackorange: '橘紅 黑底' })[f]); }
+        else if (cfg.meterOn) { const c = cyc(['sync', 'level', ...GRADS], cfg.meterColor); set('meterColor', c); toast('電平表顏色:' + (c === 'sync' ? '跟隨頻譜' : c === 'level' ? '依電平' : c)); }
+      } else {
+        const L = cyc(GRADS, cfg.gradientLeft), R = cyc(GRADS, cfg.gradientRight); set('gradientLeft', L); set('gradientRight', R); toast('頻譜配色:' + L);
+      }
+      return;
+    }
+    if (Math.abs(dx) < 70 || Math.abs(dy) > Math.abs(dx) * 0.5) return;
     suppUntil = Date.now() + 450;
     const names = Object.keys(userPresets); if (!names.length) { toast('還沒有自訂預設:設定 → 預設 → 儲存目前設定'); return; }
     let i = names.indexOf(store.get('cust')); i = i < 0 ? (dx < 0 ? 0 : names.length - 1) : (i + (dx < 0 ? 1 : -1) + names.length) % names.length;

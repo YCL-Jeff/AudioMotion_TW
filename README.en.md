@@ -109,10 +109,26 @@ python server.py --fake             synthetic test audio (no real capture)
   preset. Large touch targets, one-handed friendly. The default on first launch is the smooth spectrum. The LED category has four clearly different looks (classic green-yellow-red, Hi-Fi amber, ice-blue fine grid, rainbow octave), all with **true LEDs** (whole segments lit).
 - **The level meter is a global setting.** Applying a preset never changes the bottom meter's style, position or
   size, so nothing jumps when you switch. Only presets in the *VU meter* category set the meter style
-  (bottom VU / bar) or enter fullscreen VU. Custom presets do not store meter settings either.
+  (bottom VU / bar) or enter fullscreen VU. Custom presets, however, do store the meter / VU settings (face, scale shape, count, size, position) and restore them.
 - **Custom presets**: name and save the current settings (same name overwrites); overwrite / rename / delete. They
   are stored in the phone browser and synced to `presets.json` next to `server.py`, so they survive switching phones
   or clearing browser data. (Restart `start.bat` after updating the server so sync works.)
+
+## Gestures
+With the settings panel closed you can control the app directly on the phone screen:
+
+| Gesture | Where | Effect |
+|---|---|---|
+| Swipe left / right | anywhere | Cycle through **My presets** (left = next, right = previous); a toast shows `3/6 name` |
+| Swipe up / down | spectrum area | Cycle the spectrum color scheme (up = next, down = previous) |
+| Swipe up / down | meter area | VU meters: cycle the face color (light → dark); bar meters: cycle the color; fullscreen VU: the whole screen is the meter area |
+| Long-press 0.5 s | on the meter | Enter **resize mode**: drag the dashed frame to resize, *Auto fit* picks a suitable size, *Done* exits |
+| Tap | anywhere | Open / close the settings panel |
+
+- Vertical swipes in the spectrum area and the meter area are independent, so each can be re-colored separately.
+- Gestures are ignored while the panel is open or while in resize mode, to avoid accidental changes.
+- A swipe must be deliberate (about 70 px or more and clearly directional); slow drags and light touches do nothing.
+- Save presets first in the **Presets** tab; horizontal swipes only cycle through your own saved presets.
 
 ## Fullscreen VU mode
 Choose "Fullscreen analog VU" under Meter → Display (or use the **Spectrum ⇄ VU** button in the panel header): the whole
@@ -154,7 +170,15 @@ The menu offers these three standards; "Headroom fine-tune" accepts any value fr
 ### VU face styles
 <p align="center"><img src="docs/images/demo-vu-styles.jpg" alt="VU face styles" width="100%"></p>
 
-Under Meter → Face color: **warm cream**, **amber**, **night blue** (vintage amplifier look: brushed bezel, paper grain, screws) and the flat modern **white face / black & red text**, **black face / white & red text**, **ice-blue backlit**, **orange on black** (matte bezel, thin needle, no screws). Bezels: champagne brass / gunmetal / silver / black / matte grey; a **wide (2:1)** option is available too. The *Fullscreen VU* and *Bottom VU* preset categories offer one-tap combinations.
+Under the Meter tab:
+- **Face color** (two groups, *light* and *black*): light = **warm cream**, **amber**, **white face / black & red text**, **ice-blue backlit**; black = **night blue**, **black face / white & red text**, **orange on black**.
+- **Scale shape**: **arc** (classic) or **flat** (Sony / audio-ui style: a horizontal straight scale, tick marks and numerals fan out along the needle's axis, the needle sweeps from a pivot below the window).
+- **Bezel**: **no frame (inset glass)** is the default. Dark faces become pure black glass whose background fades out with no shadow box; light faces get a crisp thin edge with no glow. Brushed aluminum / champagne brass / gunmetal / matte grey / black are still available.
+- **Meter count**: auto (1 for a single spectrum, otherwise 2), 1 (L+R merged) or 2 (left/right). Bar meters are always stereo.
+- **Meter position**: default *Auto*: portrait = bottom (the two meters stack vertically and can be very tall), landscape = right column. The landscape width is adjustable (10–50 % via the slider or long-press-drag) and the meters rescale to fit; on the left side it keeps clear of the iPhone notch.
+- No glass reflections or vignette, so lighting is even and nothing shadows the readout.
+
+The *Fullscreen VU* and *Bottom VU* preset categories offer one-tap combinations, grouped by light / black faces.
 
 ## Notes
 - Phones must use `http://<LAN IP>`; Wake Lock is unavailable on insecure origins, so raise the phone's screen
