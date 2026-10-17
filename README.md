@@ -8,7 +8,7 @@
 
 <table>
   <tr>
-    <td width="50%"><img src="docs/images/demo-spectrum-v2.jpg" alt="左右聲道頻譜"></td>
+    <td width="50%"><img src="docs/images/demo-spectrum.jpg" alt="左右聲道頻譜"></td>
     <td width="50%"><img src="docs/images/demo-vu-v2.jpg" alt="左右 VU 錶頭"></td>
   </tr>
   <tr><td align="center">LED / 頻譜(左右聲道)</td><td align="center">全螢幕類比 VU 錶頭</td></tr>
