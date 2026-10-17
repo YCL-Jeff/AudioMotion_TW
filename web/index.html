@@ -44,7 +44,7 @@
   .danger { color: #ff8a80; }
   h4 { margin: 16px 0 4px; font-size: 12px; font-weight: 600; letter-spacing: .06em; color: var(--mut); text-transform: uppercase; }
   .row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 9px 0; border-bottom: 1px solid #1b1b1d; min-height: 28px; }
-  .row[hidden] { display: none; }
+  .row[hidden], #fs[hidden] { display: none !important; }
   .row .nm { flex: 1; }
   .row .hint { display: block; color: var(--mut); font-size: 12px; margin-top: 1px; }
   .row.range { flex-wrap: wrap; }
@@ -230,13 +230,13 @@ const SCHEMA = {
 };
 
 const DEFAULTS = {
-  channelLayout: 'single', gradientLeft: 'classic', gradientRight: 'classic', splitGradient: false, mirror: 0, blendMode: 'screen',
-  mode: 5, colorMode: 'gradient', barSpace: 0.25, ledBars: true, trueLeds: true, lumiBars: false, alphaBars: false,
-  outlineBars: false, roundBars: false, fillAlpha: 1, lineWidth: 0, reflexRatio: 0, reflexAlpha: 0.15, bgAlpha: 1, showBgColor: true,
+  channelLayout: 'single', gradientLeft: 'classic', gradientRight: 'prism', splitGradient: false, mirror: 0, blendMode: 'screen',
+  mode: 2, colorMode: 'gradient', barSpace: 0.1, ledBars: false, trueLeds: true, lumiBars: false, alphaBars: false,
+  outlineBars: false, roundBars: false, fillAlpha: 1, lineWidth: 0, reflexRatio: 0.05, reflexAlpha: 0.2, bgAlpha: 1, showBgColor: true,
   showPeaks: true, peakLine: false, fadePeaks: false, peakHoldTime: 500, peakFadeTime: 750,
   showScaleX: true, showScaleY: false, noteLabels: false, showFPS: false,
   radial: false, radialInvert: false, radius: 0.3, spinSpeed: 0,
-  fftSize: 8192, smoothing: 0.6, gravity: 3.8, minDecibels: -85, maxDecibels: -20, minFreq: 25, maxFreq: 20000,
+  fftSize: 8192, smoothing: 0.7, gravity: 3.8, minDecibels: -85, maxDecibels: -20, minFreq: 25, maxFreq: 20000,
   frequencyScale: 'log', weightingFilter: '', linearAmplitude: false, linearBoost: 1, ansiBands: false,
   maxFPS: 0, loRes: false, keepAwake: true,
   meterOn: true, meterMin: -60, meterHold: 1200, meterFall: 24, meterSeg: false, meterRms: false, meterH: 24,
@@ -246,11 +246,6 @@ const DEFAULTS = {
 const OWN = new Set(['blendMode', 'keepAwake', 'meterOn', 'meterMin', 'meterHold', 'meterFall', 'meterSeg', 'meterRms', 'meterH', 'meterPos', 'meterColor', 'meterTicks', 'meterStyle', 'viewMode', 'vuScale', 'vuSize', 'vuFace', 'vuLight', 'vuHead', 'vuScaleMode', 'vuBezel', 'vuSpeed', 'vuOverlay']);   // 不是 audioMotion 屬性的設定
 
 const BUILTIN_CATS = [
-  { id: 'led', label: 'LED', items: {
-    '經典 LED': {},
-    'Class LED': { showPeaks: false, peakHoldTime: 550, fftSize: 4096, smoothing: 0.8, minDecibels: -90, linearBoost: 5, meterSeg: true, meterH: 28 },
-    'Hi-Fi 琥珀': { mode: 2, gradientLeft: 'amber', gradientRight: 'amber', barSpace: 0.15 },
-  } },
   { id: 'spec', label: '頻譜', items: {
     '預設': { gradientRight: 'prism', mode: 2, barSpace: 0.1, ledBars: false, reflexRatio: 0.05, reflexAlpha: 0.2, smoothing: 0.7, meterMin: -48, meterH: 15 },
     'Lime': { gradientLeft: 'lime', gradientRight: 'prism', mode: 1, barSpace: 0.15, ledBars: false, reflexAlpha: 0.1, showBgColor: false, showPeaks: false, peakHoldTime: 300, meterH: 28 },
@@ -259,6 +254,12 @@ const BUILTIN_CATS = [
     '曲線圖': { mode: 10, ledBars: false, fillAlpha: 0.5, lineWidth: 2, showPeaks: false, gradientLeft: 'ice', gradientRight: 'ice' },
     '雷達': { radial: true, mode: 3, ledBars: false, gradientLeft: 'rainbow', gradientRight: 'rainbow', spinSpeed: 1 },
   } },
+  { id: 'led', label: 'LED', items: {
+    '經典 LED': { showPeaks: false, peakHoldTime: 550, fftSize: 4096, smoothing: 0.8, minDecibels: -90, linearBoost: 5 },
+    'Hi-Fi 琥珀': { mode: 2, gradientLeft: 'amber', gradientRight: 'amber', barSpace: 0.15 },
+    '冰藍 細格': { mode: 3, barSpace: 0.2, gradientLeft: 'ice', gradientRight: 'ice', peakHoldTime: 700 },
+    '彩虹 八度': { mode: 8, barSpace: 0.3, gradientLeft: 'rainbow', gradientRight: 'rainbow', showPeaks: true },
+  } },
   { id: 'lr', label: '左右聲道', items: {
     'LR 並排': { channelLayout: 'dual-horizontal', mode: 4, barSpace: 0.2, ledBars: false, reflexRatio: 0.15, reflexAlpha: 0.2, showBgColor: false, peakHoldTime: 300, peakFadeTime: 1750, fftSize: 4096, smoothing: 0.8, meterH: 16, meterTicks: false },
     'LED 並排': { channelLayout: 'dual-horizontal', gradientLeft: 'steelblue', gradientRight: 'orangered' },
@@ -266,21 +267,24 @@ const BUILTIN_CATS = [
     '左右疊圖 曲線': { channelLayout: 'blend', mode: 10, ledBars: false, fillAlpha: 0.4, lineWidth: 2, showPeaks: false, gradientLeft: 'cyan', gradientRight: 'orangered', blendMode: 'screen' },
   } },
   { id: 'vu', label: 'VU 錶頭', items: {
-    '全螢幕 暖米白': { viewMode: 'vu' },
-    '全螢幕 琥珀': { viewMode: 'vu', vuFace: 'amber' },
+    '全螢幕 暖米白': { viewMode: 'vu', vuFace: 'cream', vuLight: 1 },
+    '全螢幕 琥珀': { viewMode: 'vu', vuFace: 'amber', vuLight: 1 },
     '全螢幕 夜光': { viewMode: 'vu', vuFace: 'night', vuLight: 0.85 },
-    '底部 VU 暖米白': { meterStyle: 'vu', vuFace: 'cream' },
-    '底部 VU 琥珀': { meterStyle: 'vu', vuFace: 'amber' },
+    '底部 VU 暖米白': { meterStyle: 'vu', vuFace: 'cream', vuLight: 1 },
+    '底部 VU 琥珀': { meterStyle: 'vu', vuFace: 'amber', vuLight: 1 },
     '底部 條狀表': { meterStyle: 'bar' },
   } },
   { id: 'eco', label: '省電', items: {
     '省電 30fps': { maxFPS: 30, fftSize: 4096, loRes: true },
   } },
 ];
-// 電平表(meter*/vu*)是全域設定:切換預設時不會改變大小、位置;只有 VU 分類的預設會明確指定「樣式 / 面板色」
-const LOCK = new Set(Object.keys(DEFAULTS).filter(k => /^(meter|vu)/.test(k)));
+// 頻譜 / LED / 左右聲道 類預設是以下基底(LED 樣式)加上各自差異;開機預設則是平滑頻譜
+const LED_BASE = { mode: 5, ledBars: true, barSpace: 0.25, reflexRatio: 0, reflexAlpha: 0.15, smoothing: 0.6 };
+for (const c of BUILTIN_CATS) if (['spec', 'led', 'lr'].includes(c.id)) for (const n of Object.keys(c.items)) c.items[n] = { ...LED_BASE, ...c.items[n] };
+// 電平表的大小、位置、色彩等是全域設定:切換預設時不會改變;「樣式」(條狀/VU)隨預設而定,非 VU 預設一律回到條狀,只有 VU 分類的預設才會用類比錶頭
+const LOCK = new Set(Object.keys(DEFAULTS).filter(k => /^(meter|vu)/.test(k) && k !== 'meterStyle'));   // 電平表「樣式」(條狀/VU)隨預設切換,其餘大小位置鎖定
 for (const c of BUILTIN_CATS) for (const p of Object.values(c.items)) for (const k of Object.keys(p))
-  if (LOCK.has(k) && !(c.id === 'vu' && (k === 'meterStyle' || k === 'vuFace' || k === 'vuLight'))) delete p[k];
+  if (LOCK.has(k) && !(c.id === 'vu' && (k === 'vuFace' || k === 'vuLight'))) delete p[k];
 const BUILTIN = Object.assign({}, ...BUILTIN_CATS.map(c => c.items));
 
 const cfg = { ...DEFAULTS };
@@ -873,7 +877,7 @@ function renderPresets(body) {
   };
   const sy = document.createElement('div'); sy.className = 'info'; sy.id = 'syncinfo'; showSync(sy); body.append(sy);
   // --- 內建預設(分類) ---
-  let cat = store.get('pcat') || 'led'; if (!BUILTIN_CATS.some(c => c.id === cat)) cat = BUILTIN_CATS[0].id;
+  let cat = store.get('pcat') || 'spec'; if (!BUILTIN_CATS.some(c => c.id === cat)) cat = BUILTIN_CATS[0].id;
   const ct = document.createElement('div'); ct.className = 'cats';
   for (const c of BUILTIN_CATS) {
     const b = document.createElement('button'); b.className = 'cat' + (c.id === cat ? ' on' : ''); b.textContent = c.label;
@@ -984,6 +988,7 @@ document.addEventListener('pointerdown', () => setTimeout(showGear, 0), { captur
 $('go').addEventListener('click', showGear);
 $('close').onclick = () => { togglePanel(false); showGear(); };
 $('viewbtn').onclick = () => { set('viewMode', cfg.viewMode === 'vu' ? 'spectrum' : 'vu'); renderTab(); toast(cfg.viewMode === 'vu' ? '全螢幕 VU' : '頻譜畫面'); };
+if (!(document.documentElement.requestFullscreen || document.documentElement.webkitRequestFullscreen)) $('fs').hidden = true;   // iPhone Safari 不支援網頁全螢幕 API,隱藏無效按鈕(請改用「加入主畫面」)
 $('fs').onclick = () => {
   const el = document.documentElement;
   (document.fullscreenElement ? document.exitFullscreen() : (el.requestFullscreen || el.webkitRequestFullscreen)?.call(el));

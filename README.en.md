@@ -105,8 +105,8 @@ python server.py --fake             synthetic test audio (no real capture)
   difference), so both channels stay distinguishable even in LED mode.
 
 ## Presets
-- The top of the **Presets** tab has category buttons (LED / Spectrum / L-R / VU meter / Eco). Tap a category, then a
-  preset. Large touch targets, one-handed friendly. All LED presets use **true LEDs** (whole segments lit).
+- The top of the **Presets** tab has category buttons (Spectrum / LED / L-R / VU meter / Eco; opens on Spectrum). Tap a category, then a
+  preset. Large touch targets, one-handed friendly. The default on first launch is the smooth spectrum. The LED category has four clearly different looks (classic green-yellow-red, Hi-Fi amber, ice-blue fine grid, rainbow octave), all with **true LEDs** (whole segments lit).
 - **The level meter is a global setting.** Applying a preset never changes the bottom meter's style, position or
   size, so nothing jumps when you switch. Only presets in the *VU meter* category set the meter style
   (bottom VU / bar) or enter fullscreen VU. Custom presets do not store meter settings either.
