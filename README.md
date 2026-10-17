@@ -8,10 +8,10 @@
 
 <table>
   <tr>
-    <td width="50%"><img src="docs/images/demo-spectrum.jpg" alt="左右聲道頻譜"></td>
-    <td width="50%"><img src="docs/images/demo-vu.jpg" alt="左右 VU 錶頭"></td>
+    <td width="50%"><img src="docs/images/demo-spectrum-v2.jpg" alt="左右聲道頻譜"></td>
+    <td width="50%"><img src="docs/images/demo-vu-v2.jpg" alt="左右 VU 錶頭"></td>
   </tr>
-  <tr><td align="center">LED / 頻譜(左右聲道)</td><td align="center">類比 VU 錶頭</td></tr>
+  <tr><td align="center">LED / 頻譜(左右聲道)</td><td align="center">全螢幕類比 VU 錶頭</td></tr>
 </table>
 
 <details>
@@ -99,6 +99,8 @@ python server.py --fake            合成測試音(不擷取真實聲音)
 ## 手勢操作
 在手機畫面上(設定面板關閉時)可以直接用手勢操作,不必開設定:
 
+<p align="center"><img src="docs/images/demo-gestures-v2.jpg" alt="手勢操作示意" width="100%"></p>
+
 | 手勢 | 在哪裡 | 作用 |
 |---|---|---|
 | 左右滑動 | 畫面任一處 | 循環切換「我的預設」(往左 = 下一個、往右 = 上一個),上方顯示 `3/6 名稱` |
@@ -113,7 +115,7 @@ python server.py --fake            合成測試音(不擷取真實聲音)
 - 自訂預設需要先在「預設」分頁儲存;左右滑動只會在你自己存的預設之間切換。
 
 ## 全螢幕 VU 模式
-設定面板「電平表」分頁最上方的「畫面顯示」選「全螢幕類比 VU 錶頭」(或面板標題列的「頻譜 ⇄ VU」按鈕一鍵切換):整個畫面只顯示左右兩個長方形(3:2)VU 錶頭,橫放左右並排、直放上下疊,自動放到最大;頻譜分析會暫停以省電。可調面板色、背光、Headroom 校準、外框材質、指針速度、錶頭佔畫面比例。內建預設「全螢幕 VU 暖米白 / 琥珀 / 夜光」。
+設定面板「電平表」分頁最上方的「畫面顯示」選「全螢幕全螢幕類比 VU 錶頭」(或面板標題列的「頻譜 ⇄ VU」按鈕一鍵切換):整個畫面只顯示左右兩個長方形(3:2)VU 錶頭,橫放左右並排、直放上下疊,自動放到最大;頻譜分析會暫停以省電。可調面板色、背光、Headroom 校準、外框材質、指針速度、錶頭佔畫面比例。內建預設「全螢幕 VU 暖米白 / 琥珀 / 夜光」。
 
 ## 電平表
 左右聲道各一個,位置可選下方 / 右側 / 左側(橫放手機建議右側;放右側時設定面板自動改靠左)。「電平表」分頁可切換兩種樣式:
@@ -143,7 +145,7 @@ python server.py --fake            合成測試音(不擷取真實聲音)
 選單提供上面三種標準,也可用「Headroom 微調」在 4–26 dB 間自訂。
 
 ### VU 面板樣式
-<p align="center"><img src="docs/images/demo-vu-styles.jpg" alt="VU 面板樣式" width="100%"></p>
+<p align="center"><img src="docs/images/demo-vu-styles-v2.jpg" alt="VU 面板樣式" width="100%"></p>
 
 在「電平表」分頁可選:
 - **面板色**(分成「淺色面板」與「黑底面板」兩組):淺色有 **暖米白**、**琥珀**、**白底 黑紅字**、**冰藍背光**;黑底有 **夜光藍**、**黑底 白紅字**、**橘紅 黑底**。

@@ -9,8 +9,8 @@ pair of analog VU meters.
 
 <table>
   <tr>
-    <td width="50%"><img src="docs/images/demo-spectrum.jpg" alt="L/R spectrum"></td>
-    <td width="50%"><img src="docs/images/demo-vu.jpg" alt="L/R VU meters"></td>
+    <td width="50%"><img src="docs/images/demo-spectrum-v2.jpg" alt="L/R spectrum"></td>
+    <td width="50%"><img src="docs/images/demo-vu-v2.jpg" alt="L/R VU meters"></td>
   </tr>
   <tr><td align="center">Spectrum (L/R channels)</td><td align="center">Analog VU meters</td></tr>
 </table>
@@ -117,6 +117,8 @@ python server.py --fake             synthetic test audio (no real capture)
 ## Gestures
 With the settings panel closed you can control the app directly on the phone screen:
 
+<p align="center"><img src="docs/images/demo-gestures-v2-en.jpg" alt="Gesture overview" width="100%"></p>
+
 | Gesture | Where | Effect |
 |---|---|---|
 | Swipe left / right | anywhere | Cycle through **My presets** (left = next, right = previous); a toast shows `3/6 name` |
@@ -168,7 +170,7 @@ The needle is a second-order system: about 300 ms to settle with slight overshoo
 The menu offers these three standards; "Headroom fine-tune" accepts any value from 4 to 26 dB.
 
 ### VU face styles
-<p align="center"><img src="docs/images/demo-vu-styles.jpg" alt="VU face styles" width="100%"></p>
+<p align="center"><img src="docs/images/demo-vu-styles-v2-en.jpg" alt="VU face styles" width="100%"></p>
 
 Under the Meter tab:
 - **Face color** (two groups, *light* and *black*): light = **warm cream**, **amber**, **white face / black & red text**, **ice-blue backlit**; black = **night blue**, **black face / white & red text**, **orange on black**.
