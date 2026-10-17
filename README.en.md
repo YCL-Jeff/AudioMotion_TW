@@ -9,8 +9,8 @@ pair of analog VU meters.
 
 <table>
   <tr>
-    <td width="50%"><img src="docs/images/lr-split.jpg" alt="L/R spectrum"></td>
-    <td width="50%"><img src="docs/images/vu-meters.jpg" alt="L/R VU meters"></td>
+    <td width="50%"><img src="docs/images/demo-spectrum.jpg" alt="L/R spectrum"></td>
+    <td width="50%"><img src="docs/images/demo-vu.jpg" alt="L/R VU meters"></td>
   </tr>
   <tr><td align="center">Spectrum (L/R channels)</td><td align="center">Analog VU meters</td></tr>
 </table>
@@ -20,7 +20,7 @@ pair of analog VU meters.
 
 | L/R blend overlay | LED spectrum + vertical meter |
 |---|---|
-| <img src="docs/images/lr-overlay.jpg" width="100%"> | <img src="docs/images/led-vertical-meter.jpg" width="100%"> |
+| <img src="docs/images/demo-blend.jpg" width="100%"> | <img src="docs/images/demo-led-vertical.jpg" width="100%"> |
 
 </details>
 

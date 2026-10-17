@@ -8,8 +8,8 @@
 
 <table>
   <tr>
-    <td width="50%"><img src="docs/images/lr-split.jpg" alt="左右聲道頻譜"></td>
-    <td width="50%"><img src="docs/images/vu-meters.jpg" alt="左右 VU 錶頭"></td>
+    <td width="50%"><img src="docs/images/demo-spectrum.jpg" alt="左右聲道頻譜"></td>
+    <td width="50%"><img src="docs/images/demo-vu.jpg" alt="左右 VU 錶頭"></td>
   </tr>
   <tr><td align="center">LED / 頻譜(左右聲道)</td><td align="center">類比 VU 錶頭</td></tr>
 </table>
@@ -19,7 +19,7 @@
 
 | 左右疊圖(混色) | LED 頻譜 + 右側直式電平表 |
 |---|---|
-| <img src="docs/images/lr-overlay.jpg" width="100%"> | <img src="docs/images/led-vertical-meter.jpg" width="100%"> |
+| <img src="docs/images/demo-blend.jpg" width="100%"> | <img src="docs/images/demo-led-vertical.jpg" width="100%"> |
 
 </details>
 
