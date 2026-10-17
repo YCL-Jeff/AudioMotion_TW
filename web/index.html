@@ -1,0 +1,969 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="theme-color" content="#000000">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="apple-mobile-web-app-title" content="Spectrum">
+<title>Spectrum</title>
+<style>
+  :root { color-scheme: dark; --bg: #0e0e0f; --line: #262628; --mut: #8c8c92; --acc: #35c37a; }
+  html, body { margin: 0; height: 100%; background: #000; overflow: hidden; }
+  body { font: 14px/1.4 system-ui, -apple-system, "Noto Sans TC", sans-serif; color: #e4e4e6; -webkit-tap-highlight-color: transparent; }
+  .stage { position: fixed; left: var(--meter-l, 0px); right: var(--meter-r, 0px); top: 0; bottom: var(--meter-b, 0px); }
+  #meter { position: fixed; display: none; z-index: 1; }
+  #stage2 { pointer-events: none; }
+  #start { position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; background: #000; z-index: 9; }
+  #start button { font: inherit; font-size: 18px; padding: 14px 34px; border-radius: 999px; border: 1px solid #555; background: #111; color: #fff; }
+  #msg { opacity: .65; text-align: center; padding: 0 24px; }
+  #dot { position: fixed; top: calc(8px + env(safe-area-inset-top)); right: calc(10px + var(--meter-r, 0px)); width: 8px; height: 8px; border-radius: 50%; background: #c33; z-index: 3; opacity: .8; pointer-events: none; }
+  #dot.ok { background: #3c6; }
+  #gear { position: fixed; top: calc(4px + env(safe-area-inset-top)); left: 6px; z-index: 3; width: 40px; height: 40px; border: 0; background: none; color: #fff; font-size: 22px; opacity: 0; pointer-events: none; transition: opacity .5s; }
+  #gear.on { opacity: .5; pointer-events: auto; }
+
+  /* 面板:直放=底部抽屜,橫放=右側欄(頻譜維持可見,邊調邊看) */
+  #panel { position: fixed; z-index: 4; display: none; flex-direction: column; background: rgba(14,14,15,.93); backdrop-filter: blur(8px); border: 1px solid var(--line); }
+  #panel.show { display: flex; }
+  @media (orientation: portrait) { #panel { left: 0; right: 0; bottom: 0; height: 58vh; border-radius: 16px 16px 0 0; border-bottom: 0; } }
+  @media (orientation: landscape) { #panel { top: 0; right: 0; bottom: 0; width: min(390px, 46vw); border-right: 0; border-top: 0; border-bottom: 0; padding-right: env(safe-area-inset-right); } }
+  /* 電平表放在右側時,設定面板改靠左,避免蓋住它 */
+  @media (orientation: landscape) { html[data-mpos="right"] #panel { left: 0; right: auto; border-left: 0; border-right: 1px solid var(--line); padding-right: 0; } }
+  #phead { display: flex; gap: 8px; align-items: center; padding: 10px 12px 6px; }
+  #phead b { flex: 1; font-size: 15px; }
+  #tabs { display: flex; gap: 6px; padding: 6px 12px 10px; min-height: 34px; overflow-x: auto; border-bottom: 1px solid var(--line); scrollbar-width: none; }
+  #tabs::-webkit-scrollbar { display: none; }
+  .tab { flex: none; line-height: 1.5; padding: 5px 14px; border-radius: 999px; border: 1px solid #333; background: transparent; color: #bbb; }
+  .tab.on { background: #e9e9ec; color: #111; border-color: #e9e9ec; font-weight: 600; }
+  #pbody { overflow-y: auto; padding: 4px 14px calc(20px + env(safe-area-inset-bottom)); -webkit-overflow-scrolling: touch; overscroll-behavior: contain; }
+  button, select, input[type=text] { font: inherit; background: #1c1c1e; color: #eee; border: 1px solid #3a3a3d; border-radius: 8px; padding: 7px 11px; }
+  button:active { background: #2a2a2d; }
+  .primary { background: var(--acc); color: #04210f; border-color: var(--acc); font-weight: 600; }
+  .danger { color: #ff8a80; }
+  h4 { margin: 16px 0 4px; font-size: 12px; font-weight: 600; letter-spacing: .06em; color: var(--mut); text-transform: uppercase; }
+  .row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 9px 0; border-bottom: 1px solid #1b1b1d; min-height: 28px; }
+  .row[hidden] { display: none; }
+  .row .nm { flex: 1; }
+  .row .hint { display: block; color: var(--mut); font-size: 12px; margin-top: 1px; }
+  .row.range { flex-wrap: wrap; }
+  .row.range .v { color: var(--mut); font-variant-numeric: tabular-nums; }
+  .row.range input { flex: 0 0 100%; margin: 4px 0 0; accent-color: var(--acc); }
+  .row select { max-width: 55%; }
+  .sw { appearance: none; -webkit-appearance: none; flex: none; width: 46px; height: 28px; border-radius: 14px; background: #3a3a3d; position: relative; transition: background .15s; margin: 0; }
+  .sw::after { content: ''; position: absolute; top: 3px; left: 3px; width: 22px; height: 22px; border-radius: 50%; background: #fff; transition: left .15s; }
+  .sw:checked { background: var(--acc); } .sw:checked::after { left: 21px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; padding: 6px 0; }
+  .chip { padding: 8px 14px; border-radius: 10px; }
+  .chips.big { display: grid; grid-template-columns: repeat(auto-fill, minmax(112px, 1fr)); }
+  .chips.big .chip { min-height: 46px; font-size: 15px; padding: 10px 8px; }
+  .cats { display: flex; gap: 6px; overflow-x: auto; padding: 4px 0 6px; }
+  .cat { flex: none; min-height: 40px; padding: 8px 16px; border-radius: 999px; border: 1px solid #333; background: transparent; color: #bbb; font-size: 15px; }
+  .cat.on { background: var(--acc); border-color: var(--acc); color: #000; font-weight: 600; }
+  .chip.on { border-color: var(--acc); box-shadow: inset 0 0 0 1px var(--acc); }
+  .save { display: flex; gap: 8px; padding: 6px 0; } .save input { flex: 1; min-width: 0; }
+  .urow { display: flex; align-items: center; gap: 6px; padding: 7px 0; border-bottom: 1px solid #1b1b1d; }
+  .urow .nm { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 6px 0; }
+  .urow .nm.on { color: var(--acc); font-weight: 600; }
+  .urow button { padding: 5px 9px; font-size: 13px; }
+  .note { color: var(--mut); font-size: 12px; padding: 6px 0; }
+  .info { background: #161618; border-radius: 8px; padding: 8px 10px; margin: 8px 0 2px; font-size: 12px; color: #aaa; }
+  #toast { position: fixed; left: 50%; top: 14px; transform: translateX(-50%); background: #e9e9ec; color: #111; padding: 8px 16px; border-radius: 999px; z-index: 20; opacity: 0; transition: opacity .2s; pointer-events: none; }
+  #toast.on { opacity: 1; }
+</style>
+</head>
+<body>
+<div id="stage" class="stage"></div>
+<div id="stage2" class="stage"></div>
+<canvas id="meter"></canvas>
+<div id="dot"></div>
+<button id="gear" aria-label="設定">⚙</button>
+<div id="toast"></div>
+<div id="start">
+  <button id="go">開始</button>
+  <div id="msg">點一下開始(手機需要一次觸碰才能啟動音訊引擎)<br>開始後點畫面任一處或左上角 ⚙ 開啟設定</div>
+</div>
+<div id="panel">
+  <div id="phead"><b>顯示設定</b><button id="viewbtn">頻譜 ⇄ VU</button><button id="fs">全螢幕</button><button id="close" class="primary">完成</button></div>
+  <div id="tabs"></div>
+  <div id="pbody"></div>
+</div>
+
+<script type="module">
+import AudioMotionAnalyzer from './vendor/audioMotion-analyzer.js';
+
+const $ = id => document.getElementById(id);
+const LATENCY = 0.09;     // 目標播放延遲(秒),抖動大的 Wi-Fi 可調高
+const MAX_AHEAD = 0.35;   // 排程超過此值就丟包追趕
+const store = { get: k => { try { return localStorage.getItem(k); } catch { return null; } },
+                set: (k, v) => { try { localStorage.setItem(k, v); } catch {} } };
+
+let ac, am, am2, gain, split, gL, gR, ws, fmt, nextT = 0, wakeLock = null;
+
+// ======================================================================
+// 設定資料
+// ======================================================================
+const GRADS = ['classic', 'prism', 'rainbow', 'orangered', 'steelblue', 'amber', 'vfd', 'ice', 'sunset', 'mono', 'cyan', 'magenta', 'lime'];
+const CUSTOM_GRADS = {
+  amber:   { bgColor: '#100800', colorStops: ['#ff3b00', '#ff9d00', '#ffd27a'] },
+  vfd:     { bgColor: '#00100f', colorStops: ['#e8ffff', '#3ff', '#0aa'] },
+  ice:     { bgColor: '#02060d', colorStops: ['#fff', '#8cf', '#36f'] },
+  sunset:  { bgColor: '#0a0410', colorStops: ['#ffe14d', '#ff7a3d', '#c2185b', '#5b2a86'] },
+  mono:    { bgColor: '#000',    colorStops: ['#fff', '#888'] },
+  // 純色系,疊圖混色時左右最容易分辨
+  cyan:    { bgColor: '#000',    colorStops: ['#bffcff', '#00e5ff', '#007b99'] },
+  magenta: { bgColor: '#000',    colorStops: ['#ffc2f0', '#ff2bd6', '#8a0a72'] },
+  lime:    { bgColor: '#000',    colorStops: ['#f4ffb0', '#b6ff00', '#4a8a00'] },
+};
+const G = GRADS.map(g => [g, g]);
+const B = (k, l, o = {}) => ({ k, l, t: 'check', ...o });
+const R = (k, l, min, max, step, o = {}) => ({ k, l, t: 'range', min, max, step, ...o });
+const S = (k, l, opts, num, o = {}) => ({ k, l, t: 'select', opts, num, ...o });
+const H = (l, w) => ({ h: l, w });
+
+const isFull = c => c.viewMode === 'vu';                         // 全螢幕類比 VU
+const vuShown = c => isFull(c) || (c.meterOn && c.meterStyle === 'vu');
+const barShown = c => !isFull(c) && c.meterOn && c.meterStyle === 'bar';
+const isGraph = c => +c.mode === 10;
+const isBlend = c => c.channelLayout === 'blend';
+
+const TABS = [
+  ['presets', '預設'], ['layout', '聲道版面'], ['look', '外觀'], ['meter', '電平表'], ['peaks', '峰值/刻度'], ['analysis', '分析'], ['perf', '省電'],
+];
+
+const SCHEMA = {
+  layout: [
+    { info: true },
+    S('channelLayout', '聲道版面', [
+      ['single', '合併(單一)'], ['blend', '左右疊圖(混色)'], ['dual-combined', '左右疊圖(原生)'],
+      ['dual-horizontal', '左右並排'], ['dual-vertical', '上下分割'],
+    ], false, { hint: '「疊圖(混色)」左右各自上色並用混色疊合,LED 也看得出兩聲道' }),
+    H('配色'),
+    S('gradientLeft', '左聲道 / 單一', G),
+    S('gradientRight', '右聲道', G, false, { w: c => c.channelLayout !== 'single' }),
+    S('blendMode', '疊圖混色方式', [['screen', '濾色 (screen)'], ['lighten', '變亮 (lighten)'], ['plus-lighter', '相加 (add)'], ['difference', '差異 (difference)'], ['normal', '不混色']], false,
+      { w: isBlend, hint: '相加最亮;差異可以看出左右不同的頻段' }),
+    B('splitGradient', '並排時共用一條漸層', { w: c => c.channelLayout === 'dual-horizontal' }),
+    S('mirror', '鏡像', [['0', '關'], ['-1', '以左為準'], ['1', '以右為準']], true),
+  ],
+  look: [
+    S('mode', '模式', [['0', '離散 FFT'], ['1', '1/24 oct'], ['2', '1/12 oct'], ['3', '1/6 oct'], ['4', '1/4 oct'], ['5', '1/3 oct'], ['6', '1/2 oct'], ['7', '全 oct'], ['8', '全 oct+'], ['10', '曲線圖']], true),
+    S('colorMode', '上色方式', [['gradient', '漸層'], ['bar-index', '依長條序'], ['bar-level', '依音量']]),
+    R('barSpace', '長條間距', 0, 0.9, 0.05, { w: c => !isGraph(c) }),
+    H('長條樣式'),
+    B('ledBars', 'LED 方塊', { w: c => !isGraph(c) }),
+    B('trueLeds', '真實 LED(整格亮)', { w: c => !isGraph(c) && c.ledBars, hint: '關閉時 LED 依高度連續填滿' }),
+    B('lumiBars', '亮度條', { w: c => !isGraph(c) }),
+    B('alphaBars', '透明度條', { w: c => !isGraph(c) }),
+    B('outlineBars', '空心條', { w: c => !isGraph(c) }),
+    B('roundBars', '圓角條', { w: c => !isGraph(c) }),
+    R('fillAlpha', '填色透明度', 0, 1, 0.05, { w: c => isGraph(c) || c.outlineBars }),
+    R('lineWidth', '線寬', 0, 6, 0.5, { w: c => isGraph(c) || c.outlineBars }),
+    H('倒影 / 背景'),
+    R('reflexRatio', '倒影高度', 0, 0.5, 0.05),
+    R('reflexAlpha', '倒影透明度', 0, 1, 0.05, { w: c => c.reflexRatio > 0 }),
+    R('bgAlpha', '背景不透明度', 0, 1, 0.05),
+    B('showBgColor', '顯示背景色'),
+    H('環形(雷達)'),
+    B('radial', '環形顯示'),
+    B('radialInvert', '向內長', { w: c => c.radial }),
+    R('radius', '內圈半徑', 0.1, 0.9, 0.05, { w: c => c.radial }),
+    R('spinSpeed', '旋轉速度', -10, 10, 0.5, { w: c => c.radial }),
+  ],
+  peaks: [
+    B('showPeaks', '峰值點', { w: c => !isGraph(c) }),
+    B('peakLine', '峰值連線', { w: c => isGraph(c) }),
+    B('fadePeaks', '峰值淡出', { w: c => !isGraph(c) && c.showPeaks }),
+    R('peakHoldTime', '峰值停留 ms', 0, 2000, 50),
+    R('peakFadeTime', '峰值淡出 ms', 0, 3000, 50, { w: c => c.fadePeaks }),
+    H('刻度與標示'),
+    B('showScaleX', '頻率刻度'), B('showScaleY', 'dB 刻度'),
+    B('noteLabels', '音名標示'), B('showFPS', '顯示 FPS'),
+  ],
+  analysis: [
+    S('fftSize', 'FFT 大小', [['2048', '2048(快)'], ['4096', '4096'], ['8192', '8192'], ['16384', '16384'], ['32768', '32768(細)']], true, { hint: '越大低頻越精細,但反應較慢、較耗電' }),
+    R('smoothing', '平滑', 0, 0.95, 0.05),
+    R('gravity', '落下速度', 0.5, 10, 0.1),
+    H('範圍'),
+    R('minDecibels', '最低 dB', -120, -50, 1), R('maxDecibels', '最高 dB', -50, 0, 1),
+    R('minFreq', '最低頻率 Hz', 20, 500, 5), R('maxFreq', '最高頻率 Hz', 2000, 22000, 100),
+    H('刻度與加權'),
+    S('frequencyScale', '頻率刻度法', [['log', '對數'], ['bark', 'Bark'], ['mel', 'Mel'], ['linear', '線性']]),
+    S('weightingFilter', '加權', [['', '無'], ['A', 'A'], ['B', 'B'], ['C', 'C'], ['D', 'D'], ['468', 'ITU-R 468']]),
+    B('ansiBands', 'ANSI 標準頻帶'),
+    B('linearAmplitude', '線性振幅'), R('linearBoost', '線性增益', 1, 5, 0.1, { w: c => c.linearAmplitude }),
+  ],
+  meter: [
+    S('viewMode', '畫面顯示', [['spectrum', '頻譜(可加電平表)'], ['vu', '全螢幕類比 VU 錶頭']], false, { hint: '全螢幕 VU:整個畫面只顯示左右兩個 VU 錶頭,頻譜分析會暫停以省電' }),
+    B('meterOn', '頻譜畫面加顯示電平表', { w: c => !isFull(c), hint: '左右聲道各一個,以峰值(條狀)或平均(VU 指針)顯示' }),
+    S('meterStyle', '樣式', [['bar', '條狀(dBFS 峰值)'], ['vu', '類比 VU 指針錶頭']], false, { w: c => !isFull(c) && c.meterOn }),
+    S('meterPos', '位置', [['bottom', '下方(橫排)'], ['right', '右側(直排)'], ['left', '左側(直排)']], false, { w: c => !isFull(c) && c.meterOn, hint: '橫放手機可放右側;直條時 L 在左/上、R 在右/下' }),
+    H('類比 VU 錶頭', vuShown),
+    R('vuSize', '錶頭高度 px', 60, 260, 2, { w: c => !isFull(c) && vuShown(c), hint: '方形錶頭的邊長;下方橫排會佔用這個高度' }),
+    R('vuScale', '錶頭佔畫面比例 %', 50, 100, 1, { w: isFull, hint: '全螢幕時錶頭自動放到最大,這裡可再縮小留邊' }),
+    S('vuFace', '面板色', [['cream', '暖米白(背光)'], ['amber', '琥珀'], ['white', '冷白'], ['night', '夜光藍']], false, { w: vuShown }),
+    R('vuLight', '背光亮度', 0.4, 1, 0.05, { w: vuShown }),
+    R('vuHead', 'Headroom 校準 dB', 4, 26, 1, { w: vuShown, hint: '0 VU = -N dBFS;對齊你的參考電平,預設 18。數字小=指針更容易頂進紅區' }),
+    S('vuScaleMode', '刻度顯示', [['vu', 'VU 刻度'], ['db', 'dBFS 刻度']], false, { w: vuShown, hint: 'dBFS 刻度會依 Headroom 換算標示;內側小字永遠顯示 dBFS 對照' }),
+    S('vuBezel', '外框', [['brass', '香檳黃銅'], ['gunmetal', '槍灰'], ['silver', '銀'], ['black', '黑']], false, { w: vuShown }),
+    R('vuSpeed', '指針反應速度', 0.5, 2, 0.1, { w: vuShown, hint: '1.0 = 標準 VU(約 300 ms);越大越靈敏' }),
+    B('vuOverlay', '疊在頻譜上(不縮小頻譜)', { w: vuShown, hint: '橫放手機畫面較矮時很實用' }),
+    H('條狀樣式', barShown),
+    R('meterH', '粗細 px', 8, 90, 1, { w: barShown, hint: '最細 8 px;太細時會自動隱藏刻度與 L/R 字母' }),
+    S('meterColor', '顏色', [['sync', '跟隨主頻譜配色'], ['level', '依電平(綠黃紅)'], ...GRADS.map(g => [g, '自訂:' + g])], false, { w: barShown, hint: '預設與主頻譜相同;左右分開配色時 L/R 各用各的' }),
+    S('meterMin', '最低刻度', [['-72', '-72 dB'], ['-60', '-60 dB'], ['-48', '-48 dB'], ['-36', '-36 dB'], ['-24', '-24 dB']], true, { w: barShown, hint: '範圍越小,常用音量區間越寬' }),
+    B('meterSeg', '分段 LED 樣式', { w: barShown }),
+    B('meterRms', '同時顯示平均(RMS)', { w: barShown, hint: '實心=平均能量,淡色延伸=瞬間峰值' }),
+    B('meterTicks', '顯示刻度線', { w: barShown }),
+    R('meterHold', '峰值停留 ms', 0, 3000, 100, { w: barShown }),
+    R('meterFall', '回落速度 dB/秒', 6, 80, 2, { w: barShown, hint: '數字小=緩慢回落(像類比表)' }),
+  ],
+  perf: [
+    S('maxFPS', '最高 FPS', [['0', '原生(跟螢幕)'], ['60', '60'], ['30', '30'], ['20', '20']], true, { hint: '30 約可省一半繪圖耗電' }),
+    B('loRes', '低解析度模式', { hint: '以較低畫質換取效能與電力' }),
+    B('keepAwake', '嘗試保持螢幕不熄滅', { hint: 'http 區網連線多半不支援,請另行調長螢幕逾時' }),
+  ],
+};
+
+const DEFAULTS = {
+  channelLayout: 'single', gradientLeft: 'classic', gradientRight: 'classic', splitGradient: false, mirror: 0, blendMode: 'screen',
+  mode: 5, colorMode: 'gradient', barSpace: 0.25, ledBars: true, trueLeds: true, lumiBars: false, alphaBars: false,
+  outlineBars: false, roundBars: false, fillAlpha: 1, lineWidth: 0, reflexRatio: 0, reflexAlpha: 0.15, bgAlpha: 1, showBgColor: true,
+  showPeaks: true, peakLine: false, fadePeaks: false, peakHoldTime: 500, peakFadeTime: 750,
+  showScaleX: true, showScaleY: false, noteLabels: false, showFPS: false,
+  radial: false, radialInvert: false, radius: 0.3, spinSpeed: 0,
+  fftSize: 8192, smoothing: 0.6, gravity: 3.8, minDecibels: -85, maxDecibels: -20, minFreq: 25, maxFreq: 20000,
+  frequencyScale: 'log', weightingFilter: '', linearAmplitude: false, linearBoost: 1, ansiBands: false,
+  maxFPS: 0, loRes: false, keepAwake: true,
+  meterOn: true, meterMin: -60, meterHold: 1200, meterFall: 24, meterSeg: false, meterRms: false, meterH: 24,
+  meterPos: 'bottom', meterColor: 'sync', meterTicks: true,
+  viewMode: 'spectrum', vuScale: 94, meterStyle: 'bar', vuSize: 120, vuFace: 'cream', vuLight: 1, vuHead: 18, vuScaleMode: 'vu', vuBezel: 'brass', vuSpeed: 1, vuOverlay: false,
+};
+const OWN = new Set(['blendMode', 'keepAwake', 'meterOn', 'meterMin', 'meterHold', 'meterFall', 'meterSeg', 'meterRms', 'meterH', 'meterPos', 'meterColor', 'meterTicks', 'meterStyle', 'viewMode', 'vuScale', 'vuSize', 'vuFace', 'vuLight', 'vuHead', 'vuScaleMode', 'vuBezel', 'vuSpeed', 'vuOverlay']);   // 不是 audioMotion 屬性的設定
+
+const BUILTIN_CATS = [
+  { id: 'led', label: 'LED', items: {
+    '經典 LED': {},
+    'Class LED': { showPeaks: false, peakHoldTime: 550, fftSize: 4096, smoothing: 0.8, minDecibels: -90, linearBoost: 5, meterSeg: true, meterH: 28 },
+    'Hi-Fi 琥珀': { mode: 2, gradientLeft: 'amber', gradientRight: 'amber', barSpace: 0.15 },
+  } },
+  { id: 'spec', label: '頻譜', items: {
+    '預設': { gradientRight: 'prism', mode: 2, barSpace: 0.1, ledBars: false, reflexRatio: 0.05, reflexAlpha: 0.2, smoothing: 0.7, meterMin: -48, meterH: 15 },
+    'Lime': { gradientLeft: 'lime', gradientRight: 'prism', mode: 1, barSpace: 0.15, ledBars: false, reflexAlpha: 0.1, showBgColor: false, showPeaks: false, peakHoldTime: 300, meterH: 28 },
+    'Mono': { gradientLeft: 'mono', gradientRight: 'prism', mode: 1, ledBars: false, reflexAlpha: 0.1, showBgColor: false, showPeaks: false, peakHoldTime: 300 },
+    '細條 1/24': { mode: 1, ledBars: false, barSpace: 0.1, gradientLeft: 'prism', gradientRight: 'prism', reflexRatio: 0.25 },
+    '曲線圖': { mode: 10, ledBars: false, fillAlpha: 0.5, lineWidth: 2, showPeaks: false, gradientLeft: 'ice', gradientRight: 'ice' },
+    '雷達': { radial: true, mode: 3, ledBars: false, gradientLeft: 'rainbow', gradientRight: 'rainbow', spinSpeed: 1 },
+  } },
+  { id: 'lr', label: '左右聲道', items: {
+    'LR 並排': { channelLayout: 'dual-horizontal', mode: 4, barSpace: 0.2, ledBars: false, reflexRatio: 0.15, reflexAlpha: 0.2, showBgColor: false, peakHoldTime: 300, peakFadeTime: 1750, fftSize: 4096, smoothing: 0.8, meterH: 16, meterTicks: false },
+    'LED 並排': { channelLayout: 'dual-horizontal', gradientLeft: 'steelblue', gradientRight: 'orangered' },
+    'LED 上下': { channelLayout: 'dual-vertical', gradientLeft: 'prism', gradientRight: 'prism' },
+    '左右疊圖 曲線': { channelLayout: 'blend', mode: 10, ledBars: false, fillAlpha: 0.4, lineWidth: 2, showPeaks: false, gradientLeft: 'cyan', gradientRight: 'orangered', blendMode: 'screen' },
+  } },
+  { id: 'vu', label: 'VU 錶頭', items: {
+    '全螢幕 暖米白': { viewMode: 'vu' },
+    '全螢幕 琥珀': { viewMode: 'vu', vuFace: 'amber' },
+    '全螢幕 夜光': { viewMode: 'vu', vuFace: 'night', vuLight: 0.85 },
+    '底部 VU 暖米白': { meterStyle: 'vu', vuFace: 'cream' },
+    '底部 VU 琥珀': { meterStyle: 'vu', vuFace: 'amber' },
+    '底部 條狀表': { meterStyle: 'bar' },
+  } },
+  { id: 'eco', label: '省電', items: {
+    '省電 30fps': { maxFPS: 30, fftSize: 4096, loRes: true },
+  } },
+];
+// 電平表(meter*/vu*)是全域設定:切換預設時不會改變大小、位置;只有 VU 分類的預設會明確指定「樣式 / 面板色」
+const LOCK = new Set(Object.keys(DEFAULTS).filter(k => /^(meter|vu)/.test(k)));
+for (const c of BUILTIN_CATS) for (const p of Object.values(c.items)) for (const k of Object.keys(p))
+  if (LOCK.has(k) && !(c.id === 'vu' && (k === 'meterStyle' || k === 'vuFace' || k === 'vuLight'))) delete p[k];
+const BUILTIN = Object.assign({}, ...BUILTIN_CATS.map(c => c.items));
+
+const cfg = { ...DEFAULTS };
+try { Object.assign(cfg, JSON.parse(store.get('cfg2') || '{}')); } catch {}
+if (cfg.channelLayout === undefined) cfg.channelLayout = 'single';
+const saveCfg = () => store.set('cfg2', JSON.stringify(cfg));
+
+// ---------- 自訂預設:瀏覽器 + 電腦端 presets.json 雙重保存(換手機也在) ----------
+let userPresets = {};
+try { userPresets = JSON.parse(store.get('userPresets') || '{}') || {}; } catch {}
+const persistLocal = () => store.set('userPresets', JSON.stringify(userPresets));
+let syncOk = null;   // null=未知, true=已同步到電腦端, false=電腦端不支援/連不上
+function setSync(ok) { syncOk = ok; const el = document.getElementById('syncinfo'); if (el) showSync(el); }
+function showSync(el) {
+  el.textContent = syncOk === false ? '⚠ 未同步到電腦端:請關閉舊的伺服器視窗,重新執行 start.bat(目前預設只存在這個瀏覽器)'
+    : syncOk ? '✓ 已與電腦端同步(F:\\AudioMotion\\presets.json)' : '同步狀態:檢查中…';
+  el.style.color = syncOk === false ? '#ffb74d' : '';
+}
+async function pushPresets() {
+  persistLocal();
+  try {
+    const r = await fetch('/api/presets', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(userPresets) });
+    setSync(r.ok);
+    if (!r.ok) toast('預設未同步到電腦端(請重啟 start.bat)');
+  } catch { setSync(false); toast('預設未同步到電腦端'); }
+}
+async function pullPresets() {
+  try {
+    const r = await fetch('/api/presets', { cache: 'no-store' });
+    const ct = r.headers.get('content-type') || '';
+    if (!r.ok || !ct.includes('json')) { setSync(false); return; }   // 舊版伺服器沒有這個 API
+    const server = await r.json();
+    const merged = { ...userPresets, ...server };
+    const changed = JSON.stringify(merged) !== JSON.stringify(server);
+    userPresets = merged; persistLocal(); setSync(true);
+    if (changed) await pushPresets();
+    if (activeTab === 'presets') renderTab();
+  } catch { setSync(false); }
+}
+
+const full = p => ({ ...DEFAULTS, ...p });
+const same = (a, b, p, own) => Object.keys(DEFAULTS).every(k => (LOCK.has(k) && !(own && k in p)) || String(a[k]) === String(b[k]));
+function toast(t) { const el = $('toast'); el.textContent = t; el.classList.add('on'); clearTimeout(toast.t); toast.t = setTimeout(() => el.classList.remove('on'), 1600); }
+
+// ======================================================================
+// 套用設定到 audioMotion(含「疊圖(混色)」雙實例)
+// ======================================================================
+function applyTo(inst, over = {}) {
+  for (let pass = 0; pass < 2; pass++)   // 兩輪:避開 min/max dB、頻率的設定先後驗證問題
+    for (const [k, v] of Object.entries(cfg)) {
+      if (OWN.has(k)) continue;
+      try { inst[k] = k in over ? over[k] : v; } catch {}
+    }
+}
+function applyCfg() {
+  if (!am) return;
+  syncLayout();
+  if (isBlend(cfg)) {
+    applyTo(am, { channelLayout: 'single' });
+    applyTo(am2, { channelLayout: 'single', gradientLeft: cfg.gradientRight, gradientRight: cfg.gradientRight,
+                   showBgColor: false, overlay: true, showScaleX: false, showScaleY: false, showFPS: false, bgAlpha: 0 });
+    $('stage2').style.mixBlendMode = cfg.blendMode;
+  } else {
+    applyTo(am);
+  }
+  applyMeter();
+}
+
+function registerGradients(inst) {
+  for (const [n, g] of Object.entries(CUSTOM_GRADS)) inst.registerGradient(n, JSON.parse(JSON.stringify(g)));
+}
+const baseOpts = () => Object.fromEntries(Object.entries(cfg).filter(([k]) => !OWN.has(k) && !k.startsWith('gradient') && k !== 'channelLayout'));
+
+function routeBlend() {   // 把輸入拆成 L / R 兩路;單聲道來源時兩路相同
+  if (!split) return;
+  try { split.disconnect(); } catch {}
+  split.connect(gL, 0);
+  split.connect(gR, fmt && fmt.channels === 1 ? 0 : 1);
+}
+function syncLayout() {
+  const want = isBlend(cfg);
+  if (want && !am2) {
+    if (!split) { split = ac.createChannelSplitter(2); gL = ac.createGain(); gR = ac.createGain(); gain.connect(split); }
+    routeBlend();
+    am.disconnectInput();
+    am.connectInput(gL);
+    am2 = new AudioMotionAnalyzer($('stage2'), { audioCtx: ac, connectSpeakers: false, source: gR, ...baseOpts(), start: !document.hidden });
+    registerGradients(am2);
+  } else if (!want && am2) {
+    am2.destroy(); am2 = null; $('stage2').replaceChildren(); $('stage2').style.mixBlendMode = '';
+    am.disconnectInput();
+    am.connectInput(gain);
+  }
+}
+
+// ======================================================================
+// 左右電平表(時域取樣峰值 / RMS,單位 dBFS,純圖形)
+// ======================================================================
+const meter = { cv: $('meter'), cx: null, q: [], active: false, raf: 0, last: 0,
+  pk: [-120, -120], rms: [-120, -120], hold: [-120, -120], holdT: [0, 0], clip: [0, 0], w: 0, h: 0, ro: null };
+const METER_TICKS = [-60, -48, -36, -30, -24, -18, -12, -9, -6, -3, 0];
+function meterInit() {
+  meter.cx = meter.cv.getContext('2d');
+  meter.ro = new ResizeObserver(meterResize); meter.ro.observe(meter.cv);
+}
+function meterResize() {
+  const dpr = window.devicePixelRatio || 1;
+  meter.w = meter.cv.clientWidth; meter.h = meter.cv.clientHeight;
+  meter.cv.width = Math.round(meter.w * dpr); meter.cv.height = Math.round(meter.h * dpr);
+  meter.dpr = dpr; meter.cx.setTransform(dpr, 0, 0, dpr, 0, 0);
+}
+const isVert = () => cfg.meterPos === 'right' || cfg.meterPos === 'left';
+function applyMeter() {
+  if (!meter.cx) return;
+  const root = document.documentElement, st = root.style, cs = meter.cv.style, pos = cfg.meterPos;
+  const full = isFull(cfg), vu = vuShown(cfg), T = vu ? (pos === 'bottom' || full ? cfg.vuSize : Math.round(cfg.vuSize * VU_A)) : cfg.meterH, reserve = !(vu && cfg.vuOverlay), on = full || cfg.meterOn;
+  for (const v of ['--meter-b', '--meter-r', '--meter-l']) st.removeProperty(v);
+  cs.cssText = '';
+  // 全螢幕 VU:隱藏頻譜並暫停分析(省電)
+  $('stage').style.display = $('stage2').style.display = full ? 'none' : '';
+  const run = !full && !document.hidden;
+  if (am) { am.toggleAnalyzer(run); if (am2) am2.toggleAnalyzer(run); }
+  if (on) {
+    if (full) {
+      delete root.dataset.mpos;
+      cs.cssText = 'left:env(safe-area-inset-left);top:env(safe-area-inset-top);width:calc(100% - env(safe-area-inset-left) - env(safe-area-inset-right));height:calc(100% - env(safe-area-inset-top) - env(safe-area-inset-bottom))';
+    } else {
+      root.dataset.mpos = pos;
+      const side = pos === 'bottom' ? 'bottom' : pos, dim = `calc(${T}px + env(safe-area-inset-${side}))`;
+      if (reserve) st.setProperty('--meter-' + side[0], dim);
+      cs.cssText = pos === 'bottom' ? `left:0;bottom:0;width:100%;height:${dim}` : `top:0;${pos}:0;height:100%;width:${dim}`;
+    }
+    cs.display = 'block';
+    if (!meter.active) { meter.active = true; meter.last = performance.now(); meter.raf = requestAnimationFrame(meterFrame); }
+  } else {
+    delete root.dataset.mpos;
+    cs.display = 'none';
+    if (meter.active) { meter.active = false; cancelAnimationFrame(meter.raf); meter.q.length = 0; meter.pk.fill(-120); meter.rms.fill(-120); meter.hold.fill(-120); VU.x.fill(0); VU.v.fill(0); }
+  }
+}
+
+// 顏色:跟隨主頻譜漸層 / 依電平 / 指定漸層。建 256 階色表供 LED 分段取色
+const LEVEL_STOPS = [[0, '#30d158'], [0.3, '#30d158'], [0.55, '#e6e02e'], [0.85, '#ff9f0a'], [1, '#ff453a']];
+function meterStops(c) {
+  const mode = cfg.meterColor;
+  if (mode === 'level') {
+    const min = cfg.meterMin, f = db => (db - min) / -min;
+    return [[0, '#30d158'], [f(-18), '#30d158'], [f(-9), '#e6e02e'], [f(-3), '#ff9f0a'], [1, '#ff453a']];
+  }
+  const name = mode === 'sync' ? (c === 1 && cfg.channelLayout !== 'single' ? cfg.gradientRight : cfg.gradientLeft) : mode;
+  const g = am && am._gradients && am._gradients[name];
+  if (!g) return LEVEL_STOPS;
+  return g.colorStops.map(k => [1 - k.pos, k.color]);   // pos 0 = 頂端(高電平)
+}
+function meterLUT(c) {
+  const key = [cfg.meterColor, cfg.gradientLeft, cfg.gradientRight, cfg.channelLayout, cfg.meterMin, c].join('|');
+  const hit = (meterLUT.cache ||= {})[key];
+  if (hit) return hit;
+  const cv = document.createElement('canvas'); cv.width = 256; cv.height = 1;
+  const x = cv.getContext('2d'), g = x.createLinearGradient(0, 0, 256, 0);
+  for (const [o, col] of meterStops(c)) g.addColorStop(Math.min(1, Math.max(0, o)), col);
+  x.fillStyle = g; x.fillRect(0, 0, 256, 1);
+  return (meterLUT.cache[key] = x.getImageData(0, 0, 256, 1).data);
+}
+const lutRGB = (lut, f) => { const i = 4 * Math.min(255, Math.max(0, Math.round(f * 255))); return [lut[i], lut[i + 1], lut[i + 2]]; };
+
+function meterFrame(t) {
+  meter.raf = requestAnimationFrame(meterFrame);
+  const iv = cfg.maxFPS ? 1000 / cfg.maxFPS : 0;
+  if (iv && t - meter.last < iv * 0.95) return;
+  const dt = Math.min(0.1, (t - meter.last) / 1000) || 0.016; meter.last = t;
+  // 取「目前正在播放」的區塊(依排程時間對齊頻譜),計算峰值與 RMS
+  const now = ac.currentTime, q = meter.q;
+  while (q.length && q[0].t1 < now - 0.1) q.shift();
+  const PK = [0, 0], SS = [0, 0]; let n = 0;
+  for (const k of q) {
+    if (k.t0 > now) break;
+    if (k.t1 < now - 0.045) continue;
+    for (let c = 0; c < 2; c++) { if (k.pk[c] > PK[c]) PK[c] = k.pk[c]; SS[c] += k.ss[c]; }
+    n += k.n;
+  }
+  if (vuShown(cfg)) {   // VU 指針:二階系統,標準約 300 ms 到位、輕微過衝
+    const ref = Math.pow(10, -cfg.vuHead / 20), w = 20 * cfg.vuSpeed, zeta = 0.8, h = dt / 4;
+    for (let c = 0; c < 2; c++) {
+      const u = n ? Math.sqrt(SS[c] / n) / ref : 0;
+      for (let i = 0; i < 4; i++) { VU.v[c] += (w * w * (u - VU.x[c]) - 2 * zeta * w * VU.v[c]) * h; VU.x[c] += VU.v[c] * h; }
+      if (VU.x[c] < 0) { VU.x[c] = 0; VU.v[c] = 0; }
+    }
+  }
+  for (let c = 0; c < 2; c++) {
+    const pk = PK[c], ss = SS[c];
+    const pdb = pk > 1e-6 ? 20 * Math.log10(pk) : -120, rdb = ss > 0 && n ? 10 * Math.log10(ss / n) : -120;
+    meter.pk[c] = Math.max(pdb, meter.pk[c] - cfg.meterFall * dt);              // 瞬間上升、依速度回落
+    meter.rms[c] = Math.max(rdb, meter.rms[c] - cfg.meterFall * 0.5 * dt);
+    if (pdb >= meter.hold[c]) { meter.hold[c] = pdb; meter.holdT[c] = t; }
+    else if (t - meter.holdT[c] > cfg.meterHold) meter.hold[c] = Math.max(pdb, meter.hold[c] - cfg.meterFall * 2 * dt);
+    if (pk >= CLIP_LIN) meter.clip[c] = t;                                          // 接近滿格(削波)
+  }
+  (vuShown(cfg) ? drawVU : drawBar)(t);
+}
+function drawBar(t) {
+  const cx = meter.cx, vert = isVert(), dpr = meter.dpr || 1;
+  const L = vert ? meter.h : meter.w;                         // 沿長軸(刻度方向)長度
+  const T = Math.min(cfg.meterH, vert ? meter.w : meter.h);   // 垂直於長軸的厚度
+  cx.setTransform(dpr, 0, 0, dpr, 0, 0); cx.clearRect(0, 0, meter.w, meter.h);
+  if (L < 50) return;
+  const min = cfg.meterMin, span = -min;
+  const pad = T >= 18 ? 3 : 1;
+  const labels = T >= 20, padL = labels ? 24 : 6, padR = T >= 14 ? 10 : 6;
+  const x0 = padL, x1 = L - padR, bw = x1 - x0;
+  const top = pad, gap = T >= 28 ? 3 : T >= 16 ? 2 : 1, tick = cfg.meterTicks ? (T >= 34 ? 7 : T >= 22 ? 5 : 0) : 0;
+  const rh = Math.max(2, (T - top - gap - tick - pad) / 2);
+  const X = db => x0 + (Math.min(0, Math.max(min, db)) - min) / span * bw;
+  const acrossOff = cfg.meterPos === 'left' ? meter.w - T : 0;
+
+  // 直條時旋轉座標系:x 沿長軸向上、y 橫向向右(L 在左、R 在右)
+  cx.save();
+  if (vert) { cx.translate(acrossOff, meter.h); cx.rotate(-Math.PI / 2); }
+  for (let c = 0; c < 2; c++) {
+    const y = top + c * (rh + gap), pk = meter.pk[c], rms = meter.rms[c], hold = meter.hold[c], lut = meterLUT(c);
+    const col = (db, a) => { const [r, g, b] = lutRGB(lut, (db - min) / span); return `rgba(${r},${g},${b},${a})`; };
+    if (cfg.meterSeg) {
+      const segs = Math.max(8, Math.floor((bw + 2) / 8)), sw = bw / segs - 2;
+      for (let i = 0; i < segs; i++) {
+        const db0 = min + i / segs * span, dbM = min + (i + 0.5) / segs * span, db1 = min + (i + 1) / segs * span;
+        const sx = x0 + i * (bw / segs);
+        const isHold = cfg.meterHold > 0 && hold > db0 && hold <= db1 + 1e-6 && hold > min + 1;
+        let a = 0.1;
+        if (dbM <= pk) a = cfg.meterRms ? (dbM <= rms ? 1 : 0.42) : 1;
+        cx.fillStyle = isHold ? 'rgba(255,255,255,.95)' : col(dbM, a);
+        cx.fillRect(sx, y, sw, rh);
+      }
+    } else {
+      cx.fillStyle = 'rgba(255,255,255,.07)'; cx.fillRect(x0, y, bw, rh);
+      const g = cx.createLinearGradient(x0, 0, x1, 0);
+      for (const [o, cl] of meterStops(c)) g.addColorStop(Math.min(1, Math.max(0, o)), cl);
+      cx.fillStyle = g;
+      if (cfg.meterRms) { cx.globalAlpha = 0.42; cx.fillRect(x0, y, X(pk) - x0, rh); cx.globalAlpha = 1; cx.fillRect(x0, y, X(rms) - x0, rh); }
+      else cx.fillRect(x0, y, X(pk) - x0, rh);
+      if (cfg.meterHold > 0 && hold > min + 1) { cx.fillStyle = '#fff'; cx.fillRect(X(hold) - 1, y, 2, rh); }
+    }
+    if (t - meter.clip[c] < 1500) { cx.fillStyle = '#ff453a'; cx.fillRect(x1 + 2, y, Math.min(6, padR - 3), rh); }   // 削波指示
+  }
+  if (tick) {   // 刻度線(無數字)
+    const ty = top + 2 * rh + gap + 2;
+    cx.fillStyle = '#5a5a60';
+    for (const d of METER_TICKS) if (d >= min) { const big = d === 0 || d === -6 || d === -12 || d === -24; cx.fillRect(Math.round(X(d)) - 0.5, ty, 1, big ? tick - 2 : tick - 4); }
+    cx.fillStyle = '#ff453a'; cx.fillRect(Math.round(X(0)) - 0.5, ty, 1, tick - 1);
+  }
+  cx.restore();
+
+  if (labels) {   // L / R 字母永遠保持正向,放在長軸起點端
+    cx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    cx.font = `600 ${Math.min(10, Math.max(8, rh * 0.85))}px system-ui, sans-serif`;
+    cx.textBaseline = 'middle'; cx.textAlign = 'center'; cx.fillStyle = '#8c8c92';
+    for (let c = 0; c < 2; c++) {
+      const across = top + c * (rh + gap) + rh / 2;
+      if (vert) cx.fillText(c ? 'R' : 'L', acrossOff + across, meter.h - 12);
+      else { cx.textAlign = 'left'; cx.fillText(c ? 'R' : 'L', 9, across); }
+    }
+  }
+}
+
+// ======================================================================
+// 類比 VU 錶頭(原創設計:長方形、復古 Hi-Fi 擴大機風格;標準 VU 刻度 -20…+3)
+// ======================================================================
+const VU_A = 1.5;                                                       // 錶頭寬高比(長方形)
+const VU = { x: [0, 0], v: [0, 0], face: [null, null], key: '' };
+const VU_MAJOR = [-20, -10, -7, -5, -3, -2, -1, 0, 1, 2, 3], VU_MINOR = [-15, -9, -8, -6, -4], VU_FINE = [-2.5, -1.5, -0.5, 0.5, 1.5, 2.5];
+const VU_SWEEP = 43;                                                    // 指針單側掃角(度)
+const vuF = db => Math.pow(10, db / 20) / Math.pow(10, 3 / 20);        // VU 為振幅刻度:+3 VU 在滿刻度、0 VU 約 71%
+const vuAng = f => (-VU_SWEEP + 2 * VU_SWEEP * f) * Math.PI / 180;     // 0 = 正上方
+const CLIP_LIN = Math.pow(10, -0.009 / 20);                             // 過載燈門檻 -0.009 dBFS
+const VU_FACES = {
+  cream: { c0: '#fff3cf', c1: '#efd391', c2: '#a97f35', ink: '#2b2117', red: '#c92f25', needle: '#15100b', glow: '255,244,205' },
+  amber: { c0: '#ffdc98', c1: '#f2a23a', c2: '#85480e', ink: '#2b1503', red: '#a91d16', needle: '#190c02', glow: '255,214,140' },
+  white: { c0: '#fcfdfd', c1: '#dfe4e4', c2: '#98a1a1', ink: '#1a1e20', red: '#cf2c2c', needle: '#101112', glow: '255,255,255' },
+  night: { c0: '#1f5666', c1: '#0c2b36', c2: '#03121a', ink: '#c4f5ff', red: '#ff6a5c', needle: '#eefcff', glow: '120,220,255' },
+};
+const VU_BEZELS = {
+  brass:    ['#ecdca8', '#b08f4c', '#5a4620'],
+  gunmetal: ['#7a8087', '#3a3e44', '#15171a'],
+  silver:   ['#f6f7f8', '#b9bdc2', '#6a6f75'],
+  black:    ['#46484d', '#1a1b1e', '#050506'],
+};
+const SERIF = '"Palatino Linotype", Palatino, "Book Antiqua", Georgia, "Noto Serif", serif';
+function rrect(x, X, Y, w, h, r) { x.beginPath(); x.moveTo(X + r, Y); x.arcTo(X + w, Y, X + w, Y + h, r); x.arcTo(X + w, Y + h, X, Y + h, r); x.arcTo(X, Y + h, X, Y, r); x.arcTo(X, Y, X + w, Y, r); x.closePath(); }
+const vuGeom = S => { const w = VU_A * S, h = S, bz = 0.08 * S, Ww = w - 2 * bz, Wh = h - 2 * bz; return { w, h, bz, Ww, Wh, px: w / 2, py: bz + 1.22 * Wh, R: 0.90 * Wh }; };
+function seeded(seed) { let a = seed >>> 0; return () => ((a = (a * 1664525 + 1013904223) >>> 0) / 4294967296); }
+let grainCv = null;
+function grain() {   // 紙面顆粒(一次性產生,所有錶頭共用)
+  if (grainCv) return grainCv;
+  const n = 128, cv = document.createElement('canvas'); cv.width = cv.height = n;
+  const x = cv.getContext('2d'), id = x.createImageData(n, n), r = seeded(7);
+  for (let i = 0; i < n * n; i++) { const v = 150 + r() * 105; id.data[4 * i] = id.data[4 * i + 1] = id.data[4 * i + 2] = v; id.data[4 * i + 3] = 255; }
+  x.putImageData(id, 0, 0); return (grainCv = cv);
+}
+
+function buildFace(S, dpr, c) {
+  const P = VU_FACES[cfg.vuFace] || VU_FACES.cream, B = VU_BEZELS[cfg.vuBezel] || VU_BEZELS.brass, G = vuGeom(S);
+  const { w, h, bz, Ww, Wh, px, py, R } = G, rnd = seeded(101);
+  const cv = document.createElement('canvas'); cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr);
+  const x = cv.getContext('2d'); x.scale(dpr, dpr);
+  const dbMode = cfg.vuScaleMode === 'db', H = cfg.vuHead;
+
+  // ── 外框:拉絲金屬 + 斜角高光 ──
+  let g = x.createLinearGradient(0, 0, 0, h); g.addColorStop(0, B[0]); g.addColorStop(0.45, B[1]); g.addColorStop(1, B[2]);
+  rrect(x, 0, 0, w, h, 0.07 * S); x.fillStyle = g; x.fill();
+  x.save(); rrect(x, 0, 0, w, h, 0.07 * S); x.clip();
+  for (let y = 0; y < h; y += 0.6) { x.fillStyle = rnd() > 0.5 ? `rgba(255,255,255,${rnd() * 0.07})` : `rgba(0,0,0,${rnd() * 0.08})`; x.fillRect(0, y, w, 0.6); }
+  g = x.createLinearGradient(0, 0, w, h); g.addColorStop(0, 'rgba(255,255,255,.30)'); g.addColorStop(0.5, 'rgba(255,255,255,0)'); g.addColorStop(1, 'rgba(0,0,0,.25)'); x.fillStyle = g; x.fillRect(0, 0, w, h);
+  x.restore();
+  rrect(x, 0.6, 0.6, w - 1.2, h - 1.2, 0.07 * S); g = x.createLinearGradient(0, 0, w, h); g.addColorStop(0, 'rgba(255,255,255,.75)'); g.addColorStop(0.5, 'rgba(255,255,255,.08)'); g.addColorStop(1, 'rgba(0,0,0,.55)');
+  x.strokeStyle = g; x.lineWidth = 1.2; x.stroke();
+  // ── 面板凹槽(內緣陰影) ──
+  rrect(x, bz - 0.014 * S, bz - 0.014 * S, Ww + 0.028 * S, Wh + 0.028 * S, 0.034 * S); x.fillStyle = 'rgba(0,0,0,.78)'; x.fill();
+
+  // ── 面板紙面 ──
+  x.save(); rrect(x, bz, bz, Ww, Wh, 0.026 * S); x.clip();
+  g = x.createRadialGradient(px, bz + Wh * 1.05, 0, px, bz + Wh * 1.05, Ww * 0.78);
+  g.addColorStop(0, P.c0); g.addColorStop(0.5, P.c1); g.addColorStop(1, P.c2); x.fillStyle = g; x.fillRect(bz, bz, Ww, Wh);
+  for (const fx of [0.26, 0.74]) {   // 背光燈泡光暈
+    const bx = bz + Ww * fx, by = bz + Wh * 1.0;
+    g = x.createRadialGradient(bx, by, 0, bx, by, Ww * 0.30); g.addColorStop(0, `rgba(${P.glow},.62)`); g.addColorStop(1, `rgba(${P.glow},0)`); x.fillStyle = g; x.fillRect(bz, bz, Ww, Wh);
+  }
+  x.globalCompositeOperation = 'multiply'; x.globalAlpha = 0.16; x.fillStyle = x.createPattern(grain(), 'repeat'); x.fillRect(bz, bz, Ww, Wh);   // 紙面顆粒
+  x.globalCompositeOperation = 'source-over'; x.globalAlpha = 1;
+  g = x.createLinearGradient(0, bz, 0, bz + 0.2 * Wh); g.addColorStop(0, 'rgba(0,0,0,.42)'); g.addColorStop(1, 'rgba(0,0,0,0)'); x.fillStyle = g; x.fillRect(bz, bz, Ww, 0.2 * Wh);
+  for (const [x0, d] of [[bz, 1], [bz + Ww, -1]]) { g = x.createLinearGradient(x0, 0, x0 + d * 0.1 * Ww, 0); g.addColorStop(0, 'rgba(0,0,0,.30)'); g.addColorStop(1, 'rgba(0,0,0,0)'); x.fillStyle = g; x.fillRect(Math.min(x0, x0 + d * 0.1 * Ww), bz, 0.1 * Ww, Wh); }
+
+  // ── 刻度弧 ──
+  const lw = Math.max(0.8, 0.010 * Wh), a0 = vuAng(vuF(-20)) - Math.PI / 2, a1 = vuAng(vuF(0)) - Math.PI / 2, a2 = vuAng(1) - Math.PI / 2;
+  x.lineCap = 'butt'; x.strokeStyle = P.ink; x.lineWidth = lw * 1.1; x.beginPath(); x.arc(px, py, R, a0, a1); x.stroke();
+  x.strokeStyle = P.red; x.lineWidth = 0.046 * Wh; x.beginPath(); x.arc(px, py, R + 0.012 * Wh, a1, a2); x.stroke();     // 紅區粗帶
+  x.strokeStyle = 'rgba(255,255,255,.18)'; x.lineWidth = lw * 0.7; x.beginPath(); x.arc(px, py, R + 0.012 * Wh, a1, a2); x.stroke();
+  const tick = (db, len, w0, off = 0) => {
+    const a = vuAng(vuF(db)), sx = Math.sin(a), sy = -Math.cos(a);
+    x.strokeStyle = db > 0 ? P.red : P.ink; x.lineWidth = w0;
+    x.beginPath(); x.moveTo(px + sx * (R + off), py + sy * (R + off)); x.lineTo(px + sx * (R + off + len), py + sy * (R + off + len)); x.stroke();
+  };
+  for (const d of VU_FINE) tick(d, 0.030 * Wh, lw * 0.6);
+  for (const d of VU_MINOR) tick(d, 0.045 * Wh, lw * 0.75);
+  for (const d of VU_MAJOR) tick(d, 0.080 * Wh, lw * 1.25);
+  // 副刻度(內側 dBFS 小刻度):依 Headroom 換算,讓指針讀值可直接對應數位電平
+  x.font = `600 ${0.050 * Wh}px ${SERIF}`; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillStyle = P.ink; x.globalAlpha = 0.72;
+  for (const d of [-20, -10, -5, 0, 3]) {
+    const a = vuAng(vuF(d)), r = R - 0.085 * Wh, sx = Math.sin(a), sy = -Math.cos(a);
+    x.lineWidth = lw * 0.6; x.strokeStyle = P.ink; x.beginPath(); x.moveTo(px + sx * (R - 0.026 * Wh), py + sy * (R - 0.026 * Wh)); x.lineTo(px + sx * (R - 0.044 * Wh), py + sy * (R - 0.044 * Wh)); x.stroke();
+    x.fillText((d - H > 0 ? '+' : '') + (d - H), px + sx * r, py + sy * r);
+  }
+  x.globalAlpha = 1;
+  // 主數字
+  x.font = `600 ${0.100 * Wh}px ${SERIF}`;
+  for (const d of VU_MAJOR) {
+    if (dbMode ? ![-20, -10, -5, 0, 3].includes(d) : d === -2) continue;
+    const a = vuAng(vuF(d)), r = R + 0.080 * Wh + 0.075 * Wh, lbl = dbMode ? ((d - H > 0 ? '+' : '') + (d - H)) : (d < 0 ? '−' + (-d) : String(d));
+    x.save(); x.translate(px + Math.sin(a) * r, py - Math.cos(a) * r); x.rotate(a * 0.55);   // 數字隨位置微傾
+    x.fillStyle = d > 0 ? P.red : P.ink; x.fillText(lbl, 0, 0); x.restore();
+  }
+  // 版面文字:左下 VU、右下聲道徽章、右上過載燈標示、底部 Headroom 註記
+  x.textAlign = 'left'; x.fillStyle = P.ink; x.font = `italic 700 ${0.24 * Wh}px ${SERIF}`; x.fillText('VU', bz + 0.05 * Ww, bz + 0.80 * Wh);
+  x.textAlign = 'center'; x.font = `700 ${0.11 * Wh}px ${SERIF}`;
+  const bx = bz + Ww - 0.09 * Ww, by = bz + 0.80 * Wh;
+  x.beginPath(); x.arc(bx, by, 0.095 * Wh, 0, 7); x.strokeStyle = P.ink; x.lineWidth = lw * 1.2; x.stroke();
+  x.beginPath(); x.arc(bx, by, 0.075 * Wh, 0, 7); x.lineWidth = lw * 0.5; x.stroke();
+  x.fillStyle = P.ink; x.fillText(c ? 'R' : 'L', bx, by + 0.006 * Wh);
+  x.font = `italic 600 ${0.045 * Wh}px ${SERIF}`; x.globalAlpha = 0.6; x.fillText(`0 VU = −${H} dBFS`, px, bz + 0.935 * Wh); x.globalAlpha = 1;
+  x.font = `700 ${0.040 * Wh}px ${SERIF}`; x.fillStyle = P.ink; x.globalAlpha = 0.7; x.fillText('OVER', bz + Ww - 0.062 * Wh, bz + 0.205 * Wh); x.globalAlpha = 1;
+
+  // ── 玻璃反光與背光亮度 ──
+  g = x.createLinearGradient(bz, bz, bz + Ww * 0.8, bz + Wh); g.addColorStop(0, 'rgba(255,255,255,.22)'); g.addColorStop(0.36, 'rgba(255,255,255,.06)'); g.addColorStop(0.37, 'rgba(255,255,255,0)');
+  x.fillStyle = g; x.fillRect(bz, bz, Ww, Wh);
+  if (cfg.vuLight < 1) { x.fillStyle = `rgba(0,0,0,${(1 - cfg.vuLight) * 0.78})`; x.fillRect(bz, bz, Ww, Wh); }
+  x.restore();
+  // 面板下緣斜角高光
+  g = x.createLinearGradient(0, bz, 0, bz + Wh); g.addColorStop(0, 'rgba(0,0,0,.65)'); g.addColorStop(0.5, 'rgba(255,255,255,0)'); g.addColorStop(1, 'rgba(255,255,255,.35)');
+  rrect(x, bz, bz, Ww, Wh, 0.026 * S); x.strokeStyle = g; x.lineWidth = 1.1; x.stroke();
+  // ── 螺絲(四角)與歸零螺絲 ──
+  const screw = (sx, sy, r, rot) => {
+    const sg = x.createRadialGradient(sx - r * 0.3, sy - r * 0.35, r * 0.1, sx, sy, r); sg.addColorStop(0, '#f1f1ee'); sg.addColorStop(0.6, '#9b9a95'); sg.addColorStop(1, '#4a4944');
+    x.beginPath(); x.arc(sx, sy, r, 0, 7); x.fillStyle = sg; x.fill(); x.lineWidth = Math.max(0.6, r * 0.12); x.strokeStyle = 'rgba(0,0,0,.55)'; x.stroke();
+    x.save(); x.translate(sx, sy); x.rotate(rot); x.fillStyle = 'rgba(20,18,14,.85)'; x.fillRect(-r * 0.78, -r * 0.1, r * 1.56, r * 0.2); x.restore();
+  };
+  const sr = 0.022 * S, so = bz * 0.5;
+  screw(so, so, sr, 0.6); screw(w - so, so, sr, -0.4); screw(so, h - so, sr, 1.1); screw(w - so, h - so, sr, 0.2);
+  screw(w / 2, h - bz * 0.5, 0.026 * S, 0.35);
+  return cv;
+}
+
+function drawVU(t) {
+  const cx = meter.cx, vert = isVert(), dpr = meter.dpr || 1, A = VU_A, full = isFull(cfg), Wc = meter.w, Hc = meter.h;
+  cx.setTransform(dpr, 0, 0, dpr, 0, 0); cx.clearRect(0, 0, Wc, Hc);
+  let S, spots;
+  if (full) {   // 全螢幕:橫放左右並排、直放上下疊,錶頭盡量放大
+    const land = Wc >= Hc, sc = cfg.vuScale / 100, gap = Math.round(Math.min(Wc, Hc) * 0.035);
+    S = Math.floor((land ? Math.min((Wc - gap) / 2 / A, Hc) : Math.min(Wc / A, (Hc - gap) / 2)) * sc);
+    if (S < 30) return;
+    const g = cx.createRadialGradient(Wc / 2, Hc / 2, 0, Wc / 2, Hc / 2, Math.max(Wc, Hc) * 0.7);
+    g.addColorStop(0, '#1c1d20'); g.addColorStop(1, '#050506'); cx.fillStyle = g; cx.fillRect(0, 0, Wc, Hc);
+    spots = c => land ? { X: (Wc - (2 * A * S + gap)) / 2 + c * (A * S + gap), Y: (Hc - S) / 2 } : { X: (Wc - A * S) / 2, Y: (Hc - (2 * S + gap)) / 2 + c * (S + gap) };
+  } else if (!vert) {
+    const T = Math.min(cfg.vuSize, Hc), gap = Math.round(T * 0.06);
+    S = Math.min(T, Math.floor((Wc - gap - 8) / 2 / A)); if (S < 30) return;
+    spots = c => ({ X: (Wc - (2 * A * S + gap)) / 2 + c * (A * S + gap), Y: (Hc - S) / 2 });
+  } else {
+    const Tw = Math.min(cfg.vuSize * A, Wc), gap = Math.round(cfg.vuSize * 0.06), off = cfg.meterPos === 'left' ? Wc - Tw : 0;
+    S = Math.min(cfg.vuSize, Math.floor(Tw / A), Math.floor((Hc - gap - 8) / 2)); if (S < 30) return;
+    spots = c => ({ X: off + (Tw - A * S) / 2, Y: (Hc - (2 * S + gap)) / 2 + c * (S + gap) });
+  }
+  const key = [S, dpr, cfg.vuFace, cfg.vuBezel, cfg.vuLight, cfg.vuHead, cfg.vuScaleMode].join('|');
+  if (VU.key !== key) { VU.face = [buildFace(S, dpr, 0), buildFace(S, dpr, 1)]; VU.key = key; }
+  const P = VU_FACES[cfg.vuFace] || VU_FACES.cream, G = vuGeom(S), { bz, Ww, Wh, px, py, R } = G;
+  for (let c = 0; c < 2; c++) {
+    const { X, Y } = spots(c);
+    cx.drawImage(VU.face[c], X, Y, G.w, G.h);
+    // 指針:漸細錐形、帶投影,限制在面板內
+    const f = Math.max(0, Math.min(1.06, VU.x[c] / 1.4125)), a = vuAng(f), sx = Math.sin(a), sy = -Math.cos(a), nx = -sy, ny = sx;
+    const len = R * 1.10, w0 = Math.max(1, 0.0085 * Wh), w1 = Math.max(0.5, 0.0035 * Wh), ox = X + px, oy = Y + py;
+    cx.save(); rrect(cx, X + bz, Y + bz, Ww, Wh, 0.026 * S); cx.clip();
+    cx.shadowColor = 'rgba(0,0,0,.38)'; cx.shadowBlur = 0.02 * S * dpr; cx.shadowOffsetX = 0.016 * S * dpr; cx.shadowOffsetY = 0.022 * S * dpr;
+    cx.fillStyle = P.needle; cx.beginPath();
+    cx.moveTo(ox + nx * w0, oy + ny * w0); cx.lineTo(ox + sx * len + nx * w1, oy + sy * len + ny * w1);
+    cx.lineTo(ox + sx * len - nx * w1, oy + sy * len - ny * w1); cx.lineTo(ox - nx * w0, oy - ny * w0); cx.closePath(); cx.fill();
+    cx.shadowColor = 'transparent'; cx.strokeStyle = 'rgba(255,255,255,.22)'; cx.lineWidth = Math.max(0.5, w1 * 0.5);   // 針身高光
+    cx.beginPath(); cx.moveTo(ox + nx * w0 * 0.3, oy + ny * w0 * 0.3); cx.lineTo(ox + sx * len * 0.97, oy + sy * len * 0.97); cx.stroke();
+    // 面板下緣陰影(針從下方鑽出的立體感)
+    const sg = cx.createLinearGradient(0, Y + bz + Wh - 0.05 * Wh, 0, Y + bz + Wh); sg.addColorStop(0, 'rgba(0,0,0,0)'); sg.addColorStop(1, 'rgba(0,0,0,.35)');
+    cx.fillStyle = sg; cx.fillRect(X + bz, Y + bz + Wh - 0.05 * Wh, Ww, 0.05 * Wh);
+    cx.restore();
+    // 過載燈(右上):亮 1 秒後 3 秒淡出,門檻 -0.009 dBFS
+    const dt = t - meter.clip[c], I = dt < 1000 ? 1 : Math.max(0, 1 - (dt - 1000) / 3000);
+    const lx = X + bz + Ww - 0.062 * Wh, ly = Y + bz + 0.085 * Wh, lr = 0.040 * Wh;
+    const ring = cx.createLinearGradient(lx - lr, ly - lr, lx + lr, ly + lr); ring.addColorStop(0, '#f2f2ee'); ring.addColorStop(0.5, '#8d8b85'); ring.addColorStop(1, '#3d3c38');
+    cx.fillStyle = ring; cx.beginPath(); cx.arc(lx, ly, lr * 1.28, 0, 7); cx.fill();
+    cx.save(); if (I > 0) { cx.shadowColor = `rgba(255,60,40,${I})`; cx.shadowBlur = 0.09 * S * dpr; }
+    const lens = cx.createRadialGradient(lx - lr * 0.3, ly - lr * 0.3, lr * 0.1, lx, ly, lr);
+    lens.addColorStop(0, `rgb(${Math.round(90 + 165 * I)},${Math.round(40 + 40 * I)},${Math.round(30 + 20 * I)})`); lens.addColorStop(1, `rgb(${Math.round(40 + 190 * I)},${Math.round(12 + 18 * I)},${Math.round(10 + 10 * I)})`);
+    cx.fillStyle = lens; cx.beginPath(); cx.arc(lx, ly, lr, 0, 7); cx.fill(); cx.restore();
+    cx.fillStyle = 'rgba(255,255,255,.45)'; cx.beginPath(); cx.arc(lx - lr * 0.32, ly - lr * 0.34, lr * 0.26, 0, 7); cx.fill();
+  }
+}
+
+// ======================================================================
+// 音訊 / 連線
+// ======================================================================
+function initAudio() {
+  ac = new (window.AudioContext || window.webkitAudioContext)({ latencyHint: 'playback' });
+  gain = ac.createGain();
+  am = new AudioMotionAnalyzer($('stage'), { audioCtx: ac, connectSpeakers: false, source: gain, ...baseOpts() });   // 手機不出聲,聲音仍由電腦播放
+  registerGradients(am);
+  meterInit();
+  applyCfg();
+}
+
+function onPCM(buf) {
+  if (!fmt || ac.state !== 'running') return;
+  const ch = fmt.channels;
+  const i16 = new Int16Array(buf, 0, buf.byteLength >> 1);
+  const frames = (i16.length / ch) | 0;
+  if (!frames) return;
+  const ab = ac.createBuffer(ch, frames, fmt.rate);
+  const pkA = [0, 0], ssA = [0, 0];
+  for (let c = 0; c < ch; c++) {
+    const out = ab.getChannelData(c);
+    let pk = 0, ss = 0;
+    for (let i = 0, j = c; i < frames; i++, j += ch) { const v = i16[j] / 32768, a = v < 0 ? -v : v; out[i] = v; if (a > pk) pk = a; ss += v * v; }
+    pkA[c] = pk; ssA[c] = ss;
+  }
+  if (ch === 1) { pkA[1] = pkA[0]; ssA[1] = ssA[0]; }
+  const now = ac.currentTime;
+  if (nextT < now + 0.02) nextT = now + LATENCY;          // 欠載 / 首包:重新建立緩衝
+  else if (nextT - now > MAX_AHEAD) return;                 // 積壓過多:丟包追趕
+  const src = ac.createBufferSource();
+  src.buffer = ab; src.connect(gain); src.start(nextT);
+  if (cfg.meterOn || isFull(cfg)) meter.q.push({ t0: nextT, t1: nextT + ab.duration, pk: pkA, ss: ssA, n: frames });
+  nextT += ab.duration;
+}
+
+let retry = 0;
+function connect() {
+  const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+  ws = new WebSocket(`${proto}://${location.host}/ws`);
+  ws.binaryType = 'arraybuffer';
+  ws.onopen = () => { retry = 0; };
+  ws.onmessage = e => {
+    if (typeof e.data === 'string') {
+      const m = JSON.parse(e.data);
+      if (m.error) { toast('伺服器錯誤: ' + m.error); return; }
+      fmt = m; nextT = 0; $('dot').classList.add('ok'); routeBlend(); updateInfo();
+    } else onPCM(e.data);
+  };
+  ws.onclose = () => {
+    $('dot').classList.remove('ok'); fmt = null; updateInfo();
+    setTimeout(connect, Math.min(5000, 500 * 2 ** retry++));
+  };
+}
+
+// 背景/鎖屏時關掉繪圖與連線以省電,回前景再開
+document.addEventListener('visibilitychange', () => {
+  if (!am) return;
+  if (document.hidden) {
+    am.toggleAnalyzer(false); am2 && am2.toggleAnalyzer(false);
+    ws && (ws.onclose = null, ws.close()); $('dot').classList.remove('ok');
+  } else {
+    if (!isFull(cfg)) { am.toggleAnalyzer(true); am2 && am2.toggleAnalyzer(true); }
+    ac.resume(); connect(); keepAwake();
+  }
+});
+async function keepAwake() {
+  if (!cfg.keepAwake) return;
+  try { if ('wakeLock' in navigator) wakeLock = await navigator.wakeLock.request('screen'); } catch {}
+}
+
+// ======================================================================
+// 設定面板 UI
+// ======================================================================
+let activeTab = store.get('tab') || 'presets';
+function set(k, v) { cfg[k] = v; saveCfg(); applyCfg(); refreshVisibility(); refreshPresetMarks(); if (k === 'keepAwake') keepAwake(); }
+function setAll(p, own) { const q = full(p); for (const k of LOCK) if (!(own && k in p)) q[k] = cfg[k]; Object.assign(cfg, q); saveCfg(); applyCfg(); renderTab(); }
+
+function updateInfo() {
+  const el = document.getElementById('srcinfo');
+  if (!el) return;
+  el.textContent = !fmt ? '尚未連線到電腦'
+    : `來源:${fmt.rate} Hz · ${fmt.channels === 1 ? '單聲道(左右相同)' : '立體聲'}`;
+}
+
+const rows = [];   // 目前分頁中的控制列,用於顯示條件重算
+function refreshVisibility() { for (const { el, it } of rows) el.hidden = it.w ? !it.w(cfg) : false; }
+
+function control(it) {
+  const row = document.createElement('div'); row.className = 'row' + (it.t === 'range' ? ' range' : '');
+  const nm = document.createElement('div'); nm.className = 'nm'; nm.textContent = it.l;
+  if (it.hint) { const h = document.createElement('span'); h.className = 'hint'; h.textContent = it.hint; nm.append(h); }
+  row.append(nm);
+  const v = cfg[it.k];
+  if (it.t === 'check') {
+    const el = Object.assign(document.createElement('input'), { type: 'checkbox', className: 'sw', checked: !!v });
+    el.onchange = () => set(it.k, el.checked); row.append(el);
+  } else if (it.t === 'range') {
+    const val = document.createElement('span'); val.className = 'v'; val.textContent = v;
+    const el = Object.assign(document.createElement('input'), { type: 'range', min: it.min, max: it.max, step: it.step, value: v });
+    el.oninput = () => { val.textContent = el.value; set(it.k, +el.value); };
+    row.append(val, el);
+    row.ondblclick = () => { el.value = DEFAULTS[it.k]; el.oninput(); };   // 連點兩下回預設
+  } else {
+    const el = document.createElement('select');
+    for (const [ov, ol] of it.opts) el.append(new Option(ol, ov));
+    el.value = String(v);
+    el.onchange = () => set(it.k, it.num ? +el.value : el.value); row.append(el);
+  }
+  rows.push({ el: row, it });
+  return row;
+}
+
+let presetBtns = [];
+function refreshPresetMarks() {
+  for (const { el, p, own } of presetBtns) el.classList.toggle('on', same(cfg, full(p), p, own));
+}
+
+function renderPresets(body) {
+  presetBtns = [];
+  const mkChip = (name, p) => {
+    const b = document.createElement('button'); b.className = 'chip'; b.textContent = name;
+    b.onclick = () => { setAll(p, true); toast(`已套用「${name}」`); };
+    presetBtns.push({ el: b, p, own: true }); return b;
+  };
+  const sy = document.createElement('div'); sy.className = 'info'; sy.id = 'syncinfo'; showSync(sy); body.append(sy);
+  // --- 內建預設(分類) ---
+  let cat = store.get('pcat') || 'led'; if (!BUILTIN_CATS.some(c => c.id === cat)) cat = BUILTIN_CATS[0].id;
+  const ct = document.createElement('div'); ct.className = 'cats';
+  for (const c of BUILTIN_CATS) {
+    const b = document.createElement('button'); b.className = 'cat' + (c.id === cat ? ' on' : ''); b.textContent = c.label;
+    b.onclick = () => { store.set('pcat', c.id); renderTab(); }; ct.append(b);
+  }
+  body.append(ct);
+  const chips = document.createElement('div'); chips.className = 'chips big';
+  for (const [name, p] of Object.entries(BUILTIN_CATS.find(c => c.id === cat).items)) chips.append(mkChip(name, p));
+  body.append(chips);
+  // --- 我的預設 ---
+  const h1 = document.createElement('h4'); h1.textContent = '儲存目前設定'; body.append(h1);
+  const save = document.createElement('div'); save.className = 'save';
+  const inp = Object.assign(document.createElement('input'), { type: 'text', placeholder: '輸入預設名稱', maxLength: 24 });
+  const sb = document.createElement('button'); sb.className = 'primary'; sb.textContent = '儲存';
+  sb.onclick = () => {
+    const name = inp.value.trim();
+    if (!name) { inp.focus(); return; }
+    const exists = name in userPresets;
+    userPresets[name] = { ...cfg }; pushPresets(); toast(exists ? `已更新「${name}」` : `已儲存「${name}」`);
+    renderTab();
+  };
+  inp.onkeydown = e => { if (e.key === 'Enter') sb.click(); };
+  save.append(inp, sb); body.append(save);
+
+  const h2 = document.createElement('h4'); h2.textContent = '我的預設'; body.append(h2);
+  const names = Object.keys(userPresets);
+  if (!names.length) { const n = document.createElement('div'); n.className = 'note'; n.textContent = '還沒有自訂預設。調好畫面後在上方取名儲存;同名會覆蓋。預設也會存到電腦端,換手機也能用。'; body.append(n); }
+  for (const name of names) {
+    const r = document.createElement('div'); r.className = 'urow';
+    const nm = document.createElement('div'); nm.className = 'nm'; nm.textContent = name;
+    nm.onclick = () => { setAll(userPresets[name]); toast(`已套用「${name}」`); };
+    presetBtns.push({ el: nm, p: userPresets[name] });
+    const ov = document.createElement('button'); ov.textContent = '覆蓋';
+    ov.title = '用目前設定覆蓋這個預設';
+    ov.onclick = () => { userPresets[name] = { ...cfg }; pushPresets(); toast(`已更新「${name}」`); refreshPresetMarks(); };
+    const rn = document.createElement('button'); rn.textContent = '改名';
+    rn.onclick = () => {
+      const inp2 = Object.assign(document.createElement('input'), { type: 'text', value: name, maxLength: 24 });
+      nm.replaceWith(inp2); inp2.focus(); inp2.select();
+      const done = () => {
+        const nn = inp2.value.trim();
+        if (nn && nn !== name && !(nn in userPresets)) {
+          const next = {}; for (const k of Object.keys(userPresets)) next[k === name ? nn : k] = userPresets[k];
+          userPresets = next; pushPresets();
+        }
+        renderTab();
+      };
+      inp2.onblur = done; inp2.onkeydown = e => { if (e.key === 'Enter') inp2.blur(); };
+    };
+    const del = document.createElement('button'); del.className = 'danger'; del.textContent = '刪除';
+    del.onclick = () => {
+      if (del.dataset.arm) { delete userPresets[name]; pushPresets(); toast(`已刪除「${name}」`); renderTab(); return; }
+      del.dataset.arm = 1; del.textContent = '確定?'; setTimeout(() => { if (del.isConnected) { delete del.dataset.arm; del.textContent = '刪除'; } }, 2500);
+    };
+    r.append(nm, ov, rn, del); body.append(r);
+  }
+  const reset = document.createElement('button'); reset.textContent = '全部重設為預設值';
+  reset.onclick = () => { setAll(DEFAULTS, true); toast('已重設'); };
+  body.append(reset);
+  const n2 = document.createElement('div'); n2.className = 'note'; n2.textContent = '提示:滑桿連點兩下可回到預設值。'; body.append(n2);
+  refreshPresetMarks();
+}
+
+function renderTab() {
+  const body = $('pbody'); body.replaceChildren(); rows.length = 0;
+  for (const b of $('tabs').children) b.classList.toggle('on', b.dataset.t === activeTab);
+  if (activeTab === 'presets') { renderPresets(body); return; }
+  for (const it of SCHEMA[activeTab]) {
+    if (it.info) { const d = document.createElement('div'); d.className = 'info'; d.id = 'srcinfo'; body.append(d); updateInfo(); continue; }
+    if (it.h) { const h = document.createElement('h4'); h.textContent = it.h; body.append(h); rows.push({ el: h, it }); continue; }
+    body.append(control(it));
+  }
+  refreshVisibility();
+}
+function buildTabs() {
+  for (const [id, label] of TABS) {
+    const b = document.createElement('button'); b.className = 'tab'; b.textContent = label; b.dataset.t = id;
+    b.onclick = () => { activeTab = id; store.set('tab', id); renderTab(); $('pbody').scrollTop = 0; };
+    $('tabs').append(b);
+  }
+  if (!SCHEMA[activeTab] && activeTab !== 'presets') activeTab = 'presets';
+  renderTab();
+}
+
+// ======================================================================
+// 開始 / 面板開關
+// ======================================================================
+$('go').onclick = async () => {
+  initAudio();
+  await ac.resume();
+  $('start').remove();
+  connect(); keepAwake();
+};
+const togglePanel = f => { const on = $('panel').classList.toggle('show', f); if (on) pullPresets(); };
+$('stage').addEventListener('click', () => togglePanel());
+$('stage2').addEventListener('click', () => togglePanel());
+$('meter').addEventListener('click', () => togglePanel());
+$('gear').onclick = () => togglePanel();
+// ⚙ 按鈕:開始後與每次點擊畫面時顯示,5 秒後自動淡出(面板開啟時不顯示)
+let gearT;
+function showGear() {
+  clearTimeout(gearT);
+  if ($('panel').classList.contains('show')) { $('gear').classList.remove('on'); return; }
+  $('gear').classList.add('on');
+  gearT = setTimeout(() => $('gear').classList.remove('on'), 5000);
+}
+document.addEventListener('pointerdown', () => setTimeout(showGear, 0), { capture: true });
+$('go').addEventListener('click', showGear);
+$('close').onclick = () => { togglePanel(false); showGear(); };
+$('viewbtn').onclick = () => { set('viewMode', cfg.viewMode === 'vu' ? 'spectrum' : 'vu'); renderTab(); toast(cfg.viewMode === 'vu' ? '全螢幕 VU' : '頻譜畫面'); };
+$('fs').onclick = () => {
+  const el = document.documentElement;
+  (document.fullscreenElement ? document.exitFullscreen() : (el.requestFullscreen || el.webkitRequestFullscreen)?.call(el));
+};
+buildTabs();
+pullPresets();
+</script>
+</body>
+</html>
