@@ -139,6 +139,23 @@ The needle is a second-order system: about 300 ms to settle with slight overshoo
 - "Overlay on spectrum" keeps the spectrum full size, useful for short landscape screens.
 - Everything is drawn in code at runtime: no image files, no brand marks.
 
+### Calibration standard (Headroom)
+"Calibration standard" under Meter sets which dBFS level equals 0 VU:
+
+| Digital level (dBFS) | Maps to | Typical use |
+|---|---|---|
+| -18 dBFS (common) | 0 VU | Professional music production, mixing, studios |
+| -20 dBFS | 0 VU | Film, TV broadcast, AV engineering |
+| -14 dBFS | 0 VU | Modern loud pop, some consumer audio gear |
+| 0 dBFS | Needle pinned (beyond +14 to +20 VU) | Absolute digital limit; clipping and distortion beyond it; overload LED lights |
+
+The menu offers these three standards; "Headroom fine-tune" accepts any value from 4 to 26 dB.
+
+### VU face styles
+<p align="center"><img src="docs/images/demo-vu-styles.jpg" alt="VU face styles" width="100%"></p>
+
+Under Meter → Face color: **warm cream**, **amber**, **night blue** (vintage amplifier look: brushed bezel, paper grain, screws) and the flat modern **white face / black & red text**, **black face / white & red text**, **ice-blue backlit**, **orange on black** (matte bezel, thin needle, no screws). Bezels: champagne brass / gunmetal / silver / black / matte grey; a **wide (2:1)** option is available too. The *Fullscreen VU* and *Bottom VU* preset categories offer one-tap combinations.
+
 ## Notes
 - Phones must use `http://<LAN IP>`; Wake Lock is unavailable on insecure origins, so raise the phone's screen
   timeout or use fullscreen.

@@ -50,7 +50,12 @@
   .row.range { flex-wrap: wrap; }
   .row.range .v { color: var(--mut); font-variant-numeric: tabular-nums; }
   .row.range input { flex: 0 0 100%; margin: 4px 0 0; accent-color: var(--acc); }
-  .row select { max-width: 55%; }
+  .row.sel { flex-direction: column; align-items: stretch; gap: 7px; }
+  .seg { display: flex; flex-wrap: wrap; gap: 6px; }
+  .seg button { flex: 1 1 auto; min-height: 40px; padding: 7px 12px; font-size: 14px; border-radius: 10px; color: #ccc; display: inline-flex; align-items: center; justify-content: center; gap: 7px; }
+  .seg.many button { flex: 0 1 auto; min-height: 36px; padding: 6px 11px; font-size: 13px; }
+  .seg button.on { background: var(--acc); border-color: var(--acc); color: #04210f; font-weight: 600; }
+  .seg i { width: 14px; height: 14px; border-radius: 50%; border: 1px solid rgba(255,255,255,.35); flex: none; }
   .sw { appearance: none; -webkit-appearance: none; flex: none; width: 46px; height: 28px; border-radius: 14px; background: #3a3a3d; position: relative; transition: background .15s; margin: 0; }
   .sw::after { content: ''; position: absolute; top: 3px; left: 3px; width: 22px; height: 22px; border-radius: 50%; background: #fff; transition: left .15s; }
   .sw:checked { background: var(--acc); } .sw:checked::after { left: 21px; }
@@ -129,6 +134,8 @@ const isFull = c => c.viewMode === 'vu';                         // 全螢幕類
 const vuShown = c => isFull(c) || (c.meterOn && c.meterStyle === 'vu');
 const barShown = c => !isFull(c) && c.meterOn && c.meterStyle === 'bar';
 const isGraph = c => +c.mode === 10;
+const vuN = () => cfg.vuCount === '1' ? 1 : cfg.vuCount === '2' ? 2 : (cfg.channelLayout === 'single' && !isFull(cfg) ? 1 : 2);   // 錶頭數:自動=單頻譜 1 個,其餘 2 個
+const monoM = () => vuShown(cfg) && vuN() === 1;   // 只顯示一個類比 VU(L+R 合併);條狀(數位)電平表永遠左右雙聲道
 const isBlend = c => c.channelLayout === 'blend';
 
 const TABS = [
@@ -201,15 +208,21 @@ const SCHEMA = {
     S('viewMode', '畫面顯示', [['spectrum', '頻譜(可加電平表)'], ['vu', '全螢幕類比 VU 錶頭']], false, { hint: '全螢幕 VU:整個畫面只顯示左右兩個 VU 錶頭,頻譜分析會暫停以省電' }),
     B('meterOn', '頻譜畫面加顯示電平表', { w: c => !isFull(c), hint: '左右聲道各一個,以峰值(條狀)或平均(VU 指針)顯示' }),
     S('meterStyle', '樣式', [['bar', '條狀(dBFS 峰值)'], ['vu', '類比 VU 指針錶頭']], false, { w: c => !isFull(c) && c.meterOn }),
-    S('meterPos', '位置', [['bottom', '下方(橫排)'], ['right', '右側(直排)'], ['left', '左側(直排)']], false, { w: c => !isFull(c) && c.meterOn, hint: '橫放手機可放右側;直條時 L 在左/上、R 在右/下' }),
+    S('meterPos', '位置', [['auto', '自動(直放下方、橫放右側)'], ['bottom', '下方(橫排)'], ['right', '右側(直排)'], ['left', '左側(直排)']], false, { w: c => !isFull(c) && c.meterOn, hint: '橫放手機可放右側;直條時 L 在左/上、R 在右/下' }),
     H('類比 VU 錶頭', vuShown),
-    R('vuSize', '錶頭高度 px', 60, 260, 2, { w: c => !isFull(c) && vuShown(c), hint: '方形錶頭的邊長;下方橫排會佔用這個高度' }),
+    R('vuSize', '錶頭高度 px', 60, 420, 2, { w: c => !isFull(c) && vuShown(c), hint: '下方橫排時每個錶頭的高度(手機直立時兩個會上下疊放)。放在右/左側時依螢幕自動決定:橫放自動縮小、直放可較大,不受此設定限制' }),
     R('vuScale', '錶頭佔畫面比例 %', 50, 100, 1, { w: isFull, hint: '全螢幕時錶頭自動放到最大,這裡可再縮小留邊' }),
-    S('vuFace', '面板色', [['cream', '暖米白(背光)'], ['amber', '琥珀'], ['white', '冷白'], ['night', '夜光藍']], false, { w: vuShown }),
+    S('vuFace', '面板色', [['cream', '暖米白(背光)'], ['amber', '琥珀'], ['night', '夜光藍'], ['paperwhite', '白底 黑紅字'], ['blackwhite', '黑底 白紅字'], ['iceblue', '冰藍背光'], ['blackorange', '橘紅 黑底']], false, { w: vuShown }),
+    S('vuShape', '刻度形狀', [['arc', '圓弧(經典)'], ['flat', '平直(Sony / audio-ui 風)']], false, { w: vuShown, hint: '平直:刻度排成水平直線,指針從下方轉軸掃過;建議寬高比 2.2 以上' }),
+    S('vuCount', '錶頭數量', [['auto', '自動(單頻譜 1 個)'], ['1', '1 個(L+R 合併)'], ['2', '2 個(左右)']], false, { w: vuShown }),
+    R('vuSideW', '橫放時電平表寬度 %', 10, 45, 1, { w: c => !isFull(c) && vuShown(c), hint: '橫放(電平表在右/左側)時,佔整個畫面寬度的百分比;錶頭會跟著放大縮小,頻譜取得其餘寬度' }),
+    R('vuAspect', '錶頭寬高比', 1.3, 2.6, 0.1, { w: vuShown, hint: '越大越扁長(1.8 為預設)' }),
+    B('vuPair', '雙表共用一個外框', { w: vuShown, hint: '左右兩個錶頭嵌在同一塊面板上;直排時自動分開' }),
     R('vuLight', '背光亮度', 0.4, 1, 0.05, { w: vuShown }),
-    R('vuHead', 'Headroom 校準 dB', 4, 26, 1, { w: vuShown, hint: '0 VU = -N dBFS;對齊你的參考電平,預設 18。數字小=指針更容易頂進紅區' }),
+    S('vuHead', '校準標準(0 VU 對應)', [[18, '-18 dBFS 錄音/混音(常用)'], [20, '-20 dBFS 影視/廣播'], [14, '-14 dBFS 現代流行/民用']], true, { w: vuShown, hint: '0 dBFS 時指針會頂到最右(超過 +14~+20 VU),過載燈亮' }),
+    R('vuHead', 'Headroom 微調 dB', 4, 26, 1, { w: vuShown, hint: '0 VU = -N dBFS;對齊你的參考電平,預設 18。數字小=指針更容易頂進紅區' }),
     S('vuScaleMode', '刻度顯示', [['vu', 'VU 刻度'], ['db', 'dBFS 刻度']], false, { w: vuShown, hint: 'dBFS 刻度會依 Headroom 換算標示;內側小字永遠顯示 dBFS 對照' }),
-    S('vuBezel', '外框', [['brass', '香檳黃銅'], ['gunmetal', '槍灰'], ['silver', '銀'], ['black', '黑']], false, { w: vuShown }),
+    S('vuBezel', '外框', [['none', '無外框(嵌入玻璃)'], ['silver', '拉絲鋁'], ['brass', '香檳黃銅'], ['gunmetal', '槍灰'], ['matte', '霧面深灰'], ['black', '黑']], false, { w: vuShown }),
     R('vuSpeed', '指針反應速度', 0.5, 2, 0.1, { w: vuShown, hint: '1.0 = 標準 VU(約 300 ms);越大越靈敏' }),
     B('vuOverlay', '疊在頻譜上(不縮小頻譜)', { w: vuShown, hint: '橫放手機畫面較矮時很實用' }),
     H('條狀樣式', barShown),
@@ -240,10 +253,10 @@ const DEFAULTS = {
   frequencyScale: 'log', weightingFilter: '', linearAmplitude: false, linearBoost: 1, ansiBands: false,
   maxFPS: 0, loRes: false, keepAwake: true,
   meterOn: true, meterMin: -60, meterHold: 1200, meterFall: 24, meterSeg: false, meterRms: false, meterH: 24,
-  meterPos: 'bottom', meterColor: 'sync', meterTicks: true,
-  viewMode: 'spectrum', vuScale: 94, meterStyle: 'bar', vuSize: 120, vuFace: 'cream', vuLight: 1, vuHead: 18, vuScaleMode: 'vu', vuBezel: 'brass', vuSpeed: 1, vuOverlay: false,
+  meterPos: 'auto', meterColor: 'sync', meterTicks: true,
+  viewMode: 'spectrum', vuScale: 94, meterStyle: 'bar', vuSize: 120, vuFace: 'cream', vuLight: 1, vuHead: 18, vuScaleMode: 'vu', vuBezel: 'none', vuAspect: 1.8, vuCount: 'auto', vuSideW: 25, vuShape: 'arc', vuPair: true, vuSpeed: 1, vuOverlay: false,
 };
-const OWN = new Set(['blendMode', 'keepAwake', 'meterOn', 'meterMin', 'meterHold', 'meterFall', 'meterSeg', 'meterRms', 'meterH', 'meterPos', 'meterColor', 'meterTicks', 'meterStyle', 'viewMode', 'vuScale', 'vuSize', 'vuFace', 'vuLight', 'vuHead', 'vuScaleMode', 'vuBezel', 'vuSpeed', 'vuOverlay']);   // 不是 audioMotion 屬性的設定
+const OWN = new Set(['blendMode', 'keepAwake', 'meterOn', 'meterMin', 'meterHold', 'meterFall', 'meterSeg', 'meterRms', 'meterH', 'meterPos', 'meterColor', 'meterTicks', 'meterStyle', 'viewMode', 'vuScale', 'vuSize', 'vuFace', 'vuLight', 'vuHead', 'vuScaleMode', 'vuBezel', 'vuAspect', 'vuShape', 'vuCount', 'vuSideW', 'vuPair', 'vuSpeed', 'vuOverlay']);   // 不是 audioMotion 屬性的設定
 
 const BUILTIN_CATS = [
   { id: 'spec', label: '頻譜', items: {
@@ -266,13 +279,29 @@ const BUILTIN_CATS = [
     'LED 上下': { channelLayout: 'dual-vertical', gradientLeft: 'prism', gradientRight: 'prism' },
     '左右疊圖 曲線': { channelLayout: 'blend', mode: 10, ledBars: false, fillAlpha: 0.4, lineWidth: 2, showPeaks: false, gradientLeft: 'cyan', gradientRight: 'orangered', blendMode: 'screen' },
   } },
-  { id: 'vu', label: 'VU 錶頭', items: {
-    '全螢幕 暖米白': { viewMode: 'vu', vuFace: 'cream', vuLight: 1 },
-    '全螢幕 琥珀': { viewMode: 'vu', vuFace: 'amber', vuLight: 1 },
-    '全螢幕 夜光': { viewMode: 'vu', vuFace: 'night', vuLight: 0.85 },
-    '底部 VU 暖米白': { meterStyle: 'vu', vuFace: 'cream', vuLight: 1 },
-    '底部 VU 琥珀': { meterStyle: 'vu', vuFace: 'amber', vuLight: 1 },
-    '底部 條狀表': { meterStyle: 'bar' },
+  { id: 'vu', label: '全螢幕 VU', items: {
+    '暖米白': { viewMode: 'vu', vuFace: 'cream', vuBezel: 'none', vuLight: 1, vuShape: 'arc', vuAspect: 1.8 },
+    '琥珀': { viewMode: 'vu', vuFace: 'amber', vuBezel: 'none', vuLight: 1, vuShape: 'arc', vuAspect: 1.8 },
+    '夜光藍': { viewMode: 'vu', vuFace: 'night', vuBezel: 'none', vuLight: 1, vuShape: 'arc', vuAspect: 1.8 },
+    '白底 黑紅字': { viewMode: 'vu', vuFace: 'paperwhite', vuBezel: 'none', vuLight: 1, vuShape: 'arc', vuAspect: 1.8 },
+    '黑底 白紅字': { viewMode: 'vu', vuFace: 'blackwhite', vuBezel: 'none', vuLight: 1, vuShape: 'arc', vuAspect: 1.8 },
+    '冰藍背光': { viewMode: 'vu', vuFace: 'iceblue', vuBezel: 'none', vuLight: 1, vuShape: 'arc', vuAspect: 1.8 },
+    '橘紅 黑底': { viewMode: 'vu', vuFace: 'blackorange', vuBezel: 'none', vuLight: 1, vuShape: 'arc', vuAspect: 1.8 },
+    '平直 Sony 橘紅': { viewMode: 'vu', vuFace: 'blackorange', vuBezel: 'none', vuLight: 1, vuShape: 'flat', vuAspect: 2.3 },
+    '平直 黑底白條': { viewMode: 'vu', vuFace: 'blackwhite', vuBezel: 'none', vuLight: 1, vuShape: 'flat', vuAspect: 2.3 },
+    '平直 暖米白': { viewMode: 'vu', vuFace: 'cream', vuBezel: 'none', vuLight: 1, vuShape: 'flat', vuAspect: 2.3 },
+    '平直 夜光藍': { viewMode: 'vu', vuFace: 'night', vuBezel: 'none', vuLight: 1, vuShape: 'flat', vuAspect: 2.3 },
+  } },
+  { id: 'vub', label: '底部 VU', items: {
+    '暖米白': { meterStyle: 'vu', vuFace: 'cream', vuBezel: 'none', vuLight: 1, vuShape: 'arc', vuAspect: 1.8 },
+    '琥珀': { meterStyle: 'vu', vuFace: 'amber', vuBezel: 'none', vuLight: 1, vuShape: 'arc', vuAspect: 1.8 },
+    '白底 黑紅字': { meterStyle: 'vu', vuFace: 'paperwhite', vuBezel: 'none', vuLight: 1, vuShape: 'arc', vuAspect: 1.8 },
+    '黑底 白紅字': { meterStyle: 'vu', vuFace: 'blackwhite', vuBezel: 'none', vuLight: 1, vuShape: 'arc', vuAspect: 1.8 },
+    '冰藍背光': { meterStyle: 'vu', vuFace: 'iceblue', vuBezel: 'none', vuLight: 1, vuShape: 'arc', vuAspect: 1.8 },
+    '橘紅 黑底': { meterStyle: 'vu', vuFace: 'blackorange', vuBezel: 'none', vuLight: 1, vuShape: 'arc', vuAspect: 1.8 },
+    '平直 Sony 橘紅': { meterStyle: 'vu', vuFace: 'blackorange', vuBezel: 'none', vuLight: 1, vuShape: 'flat', vuAspect: 2.3 },
+    '平直 黑底白條': { meterStyle: 'vu', vuFace: 'blackwhite', vuBezel: 'none', vuLight: 1, vuShape: 'flat', vuAspect: 2.3 },
+    '條狀表': { meterStyle: 'bar' },
   } },
   { id: 'eco', label: '省電', items: {
     '省電 30fps': { maxFPS: 30, fftSize: 4096, loRes: true },
@@ -284,12 +313,14 @@ for (const c of BUILTIN_CATS) if (['spec', 'led', 'lr'].includes(c.id)) for (con
 // 電平表的大小、位置、色彩等是全域設定:切換預設時不會改變;「樣式」(條狀/VU)隨預設而定,非 VU 預設一律回到條狀,只有 VU 分類的預設才會用類比錶頭
 const LOCK = new Set(Object.keys(DEFAULTS).filter(k => /^(meter|vu)/.test(k) && k !== 'meterStyle'));   // 電平表「樣式」(條狀/VU)隨預設切換,其餘大小位置鎖定
 for (const c of BUILTIN_CATS) for (const p of Object.values(c.items)) for (const k of Object.keys(p))
-  if (LOCK.has(k) && !(c.id === 'vu' && (k === 'vuFace' || k === 'vuLight'))) delete p[k];
-const BUILTIN = Object.assign({}, ...BUILTIN_CATS.map(c => c.items));
+  if (LOCK.has(k) && !(['vu', 'vub'].includes(c.id) && (k === 'vuFace' || k === 'vuLight' || k === 'vuBezel' || k === 'vuShape' || k === 'vuAspect'))) delete p[k];
+const BUILTIN = Object.assign({}, ...BUILTIN_CATS.map(c => Object.fromEntries(Object.entries(c.items).map(([n, p]) => [c.id + ':' + n, p]))));
 
 const cfg = { ...DEFAULTS };
 try { Object.assign(cfg, JSON.parse(store.get('cfg2') || '{}')); } catch {}
 if (cfg.channelLayout === undefined) cfg.channelLayout = 'single';
+// 一次性遷移:新預設為「無外框」與「自動位置」
+if (!store.get('mig3')) { if (cfg.meterPos === 'bottom') cfg.meterPos = 'auto'; cfg.vuBezel = 'none'; store.set('mig3', '1'); store.set('cfg2', JSON.stringify(cfg)); }
 const saveCfg = () => store.set('cfg2', JSON.stringify(cfg));
 
 // ---------- 自訂預設:瀏覽器 + 電腦端 presets.json 雙重保存(換手機也在) ----------
@@ -384,7 +415,7 @@ function syncLayout() {
 // 左右電平表(時域取樣峰值 / RMS,單位 dBFS,純圖形)
 // ======================================================================
 const meter = { cv: $('meter'), cx: null, q: [], active: false, raf: 0, last: 0,
-  pk: [-120, -120], rms: [-120, -120], hold: [-120, -120], holdT: [0, 0], clip: [0, 0], w: 0, h: 0, ro: null };
+  pk: [-120, -120], rms: [-120, -120], hold: [-120, -120], holdT: [0, 0], clip: [-1e9, -1e9], w: 0, h: 0, ro: null };
 const METER_TICKS = [-60, -48, -36, -30, -24, -18, -12, -9, -6, -3, 0];
 function meterInit() {
   meter.cx = meter.cv.getContext('2d');
@@ -396,11 +427,32 @@ function meterResize() {
   meter.cv.width = Math.round(meter.w * dpr); meter.cv.height = Math.round(meter.h * dpr);
   meter.dpr = dpr; meter.cx.setTransform(dpr, 0, 0, dpr, 0, 0);
 }
-const isVert = () => cfg.meterPos === 'right' || cfg.meterPos === 'left';
+const mpos = () => cfg.meterPos === 'auto' ? (window.innerHeight > window.innerWidth ? 'bottom' : 'right') : cfg.meterPos;   // 自動:手機直放→下方橫排,橫放→右側直排
+const isVert = () => mpos() === 'right' || mpos() === 'left';
+// 下方 VU 所需高度:手機直立且有左右兩個錶頭時,上下疊放(每個可達整個螢幕寬度 / 寬高比),否則左右並排
+function vuBottomH() {
+  const A = vuA(), W = window.innerWidth, n = monoM() ? 1 : 2;
+  if (n === 2 && window.innerHeight > W) { const S = Math.min(cfg.vuSize, Math.floor((W - 8) / A)); return 2 * S + Math.round(S * 0.06); }
+  const gap = cfg.vuPair && n === 2 ? 0 : Math.round(cfg.vuSize * 0.06);
+  return Math.min(cfg.vuSize, Math.floor((W - gap * (n - 1) - 8) / n / A));
+}
+// 側邊(直排)VU:錶頭依螢幕高度自動放到最大,欄寬剛好等於錶頭寬,不留空白(橫放縮小至寬度 25%、直放最多 42%)
+function vuSideS() {
+  const A = vuA(), n = monoM() ? 1 : 2, gap = n === 2 ? 6 : 0;
+  return Math.max(30, Math.min(Math.floor((window.innerHeight - gap - 8) / n), Math.floor(window.innerWidth * (window.innerWidth > window.innerHeight ? (cfg.vuSideW || 25) / 100 : 0.42) / A)));   // 橫放時自動縮小(最多佔寬度 25%);直放可以較大
+}
+// 讀取安全區域(iPhone 瀏海 / 圓角 / Home 條)的實際像素,側邊電平表要閃開
+function insetPx(side) {
+  try {
+    const d = document.createElement('div'); d.style.cssText = `position:fixed;left:0;top:0;visibility:hidden;pointer-events:none;padding-${side}:env(safe-area-inset-${side})`;
+    document.body.append(d); const v = parseFloat(getComputedStyle(d)['padding' + side[0].toUpperCase() + side.slice(1)]) || 0; d.remove(); return v;
+  } catch { return 0; }
+}
 function applyMeter() {
+  meter.inL = insetPx('left'); meter.inR = insetPx('right');
   if (!meter.cx) return;
-  const root = document.documentElement, st = root.style, cs = meter.cv.style, pos = cfg.meterPos;
-  const full = isFull(cfg), vu = vuShown(cfg), T = vu ? (pos === 'bottom' || full ? cfg.vuSize : Math.round(cfg.vuSize * VU_A)) : cfg.meterH, reserve = !(vu && cfg.vuOverlay), on = full || cfg.meterOn;
+  const root = document.documentElement, st = root.style, cs = meter.cv.style, pos = mpos();
+  const full = isFull(cfg), vu = vuShown(cfg), T = vu ? (full ? cfg.vuSize : pos === 'bottom' ? vuBottomH() : Math.round(vuSideS() * vuA())) : cfg.meterH, reserve = !(vu && cfg.vuOverlay), on = full || cfg.meterOn;
   for (const v of ['--meter-b', '--meter-r', '--meter-l']) st.removeProperty(v);
   cs.cssText = '';
   // 全螢幕 VU:隱藏頻譜並暫停分析(省電)
@@ -466,6 +518,7 @@ function meterFrame(t) {
     for (let c = 0; c < 2; c++) { if (k.pk[c] > PK[c]) PK[c] = k.pk[c]; SS[c] += k.ss[c]; }
     n += k.n;
   }
+  if (monoM()) { PK[0] = Math.max(PK[0], PK[1]); SS[0] = (SS[0] + SS[1]) / 2; PK[1] = 0; SS[1] = 0; }   // 單頻譜:合併為一個電平
   if (vuShown(cfg)) {   // VU 指針:二階系統,標準約 300 ms 到位、輕微過衝
     const ref = Math.pow(10, -cfg.vuHead / 20), w = 20 * cfg.vuSpeed, zeta = 0.8, h = dt / 4;
     for (let c = 0; c < 2; c++) {
@@ -496,14 +549,15 @@ function drawBar(t) {
   const labels = T >= 20, padL = labels ? 24 : 6, padR = T >= 14 ? 10 : 6;
   const x0 = padL, x1 = L - padR, bw = x1 - x0;
   const top = pad, gap = T >= 28 ? 3 : T >= 16 ? 2 : 1, tick = cfg.meterTicks ? (T >= 34 ? 7 : T >= 22 ? 5 : 0) : 0;
-  const rh = Math.max(2, (T - top - gap - tick - pad) / 2);
+  const nR = monoM() ? 1 : 2, gapR = nR === 2 ? gap : 0;
+  const rh = Math.max(2, (T - top - gapR - tick - pad) / nR);
   const X = db => x0 + (Math.min(0, Math.max(min, db)) - min) / span * bw;
-  const acrossOff = cfg.meterPos === 'left' ? meter.w - T : 0;
+  const acrossOff = mpos() === 'left' ? meter.w - T : 0;
 
   // 直條時旋轉座標系:x 沿長軸向上、y 橫向向右(L 在左、R 在右)
   cx.save();
   if (vert) { cx.translate(acrossOff, meter.h); cx.rotate(-Math.PI / 2); }
-  for (let c = 0; c < 2; c++) {
+  for (let c = 0; c < nR; c++) {
     const y = top + c * (rh + gap), pk = meter.pk[c], rms = meter.rms[c], hold = meter.hold[c], lut = meterLUT(c);
     const col = (db, a) => { const [r, g, b] = lutRGB(lut, (db - min) / span); return `rgba(${r},${g},${b},${a})`; };
     if (cfg.meterSeg) {
@@ -529,7 +583,7 @@ function drawBar(t) {
     if (t - meter.clip[c] < 1500) { cx.fillStyle = '#ff453a'; cx.fillRect(x1 + 2, y, Math.min(6, padR - 3), rh); }   // 削波指示
   }
   if (tick) {   // 刻度線(無數字)
-    const ty = top + 2 * rh + gap + 2;
+    const ty = top + nR * rh + gapR + 2;
     cx.fillStyle = '#5a5a60';
     for (const d of METER_TICKS) if (d >= min) { const big = d === 0 || d === -6 || d === -12 || d === -24; cx.fillRect(Math.round(X(d)) - 0.5, ty, 1, big ? tick - 2 : tick - 4); }
     cx.fillStyle = '#ff453a'; cx.fillRect(Math.round(X(0)) - 0.5, ty, 1, tick - 1);
@@ -540,190 +594,240 @@ function drawBar(t) {
     cx.setTransform(dpr, 0, 0, dpr, 0, 0);
     cx.font = `600 ${Math.min(10, Math.max(8, rh * 0.85))}px system-ui, sans-serif`;
     cx.textBaseline = 'middle'; cx.textAlign = 'center'; cx.fillStyle = '#8c8c92';
-    for (let c = 0; c < 2; c++) {
-      const across = top + c * (rh + gap) + rh / 2;
-      if (vert) cx.fillText(c ? 'R' : 'L', acrossOff + across, meter.h - 12);
-      else { cx.textAlign = 'left'; cx.fillText(c ? 'R' : 'L', 9, across); }
+    for (let c = 0; c < nR; c++) {
+      const across = top + c * (rh + gap) + rh / 2, lb = nR === 1 ? 'M' : c ? 'R' : 'L';
+      if (vert) cx.fillText(lb, acrossOff + across, meter.h - 12);
+      else { cx.textAlign = 'left'; cx.fillText(lb, 9, across); }
     }
   }
 }
 
 // ======================================================================
-// 類比 VU 錶頭(原創設計:長方形、復古 Hi-Fi 擴大機風格;標準 VU 刻度 -20…+3)
+// 類比 VU 錶頭(原創設計:深色玻璃窗 + 發光刻度 / 背光紙面;標準 VU 刻度 -20…+3)
+//   面板(含刻度、字、玻璃、暗角)只畫一次並快取,每幀只重畫指針與過載燈,省電
 // ======================================================================
-const VU_A = 1.5;                                                       // 錶頭寬高比(長方形)
-const VU = { x: [0, 0], v: [0, 0], face: [null, null], key: '' };
+const vuA = () => Math.min(2.6, Math.max(1.3, +cfg.vuAspect || 1.8));   // 單一錶頭(含邊框)的寬高比
+const VU = { x: [0, 0], v: [0, 0], win: [null, null], house: null, key: '' };
 const VU_MAJOR = [-20, -10, -7, -5, -3, -2, -1, 0, 1, 2, 3], VU_MINOR = [-15, -9, -8, -6, -4], VU_FINE = [-2.5, -1.5, -0.5, 0.5, 1.5, 2.5];
-const VU_SWEEP = 43;                                                    // 指針單側掃角(度)
+const VU_SWEEP = 38;                                                    // 指針單側掃角(度)
 const vuF = db => Math.pow(10, db / 20) / Math.pow(10, 3 / 20);        // VU 為振幅刻度:+3 VU 在滿刻度、0 VU 約 71%
 const vuAng = f => (-VU_SWEEP + 2 * VU_SWEEP * f) * Math.PI / 180;     // 0 = 正上方
 const CLIP_LIN = Math.pow(10, -0.009 / 20);                             // 過載燈門檻 -0.009 dBFS
+// 色彩主題:bg 由上到下;ink 主刻度;dim 次刻度;lit = 刻度會發光(深色面板);style: line 細線刻度 / band 粗色帶刻度
 const VU_FACES = {
-  cream: { c0: '#fff3cf', c1: '#efd391', c2: '#a97f35', ink: '#2b2117', red: '#c92f25', needle: '#15100b', glow: '255,244,205' },
-  amber: { c0: '#ffdc98', c1: '#f2a23a', c2: '#85480e', ink: '#2b1503', red: '#a91d16', needle: '#190c02', glow: '255,214,140' },
-  white: { c0: '#fcfdfd', c1: '#dfe4e4', c2: '#98a1a1', ink: '#1a1e20', red: '#cf2c2c', needle: '#101112', glow: '255,255,255' },
-  night: { c0: '#1f5666', c1: '#0c2b36', c2: '#03121a', ink: '#c4f5ff', red: '#ff6a5c', needle: '#eefcff', glow: '120,220,255' },
+  cream:       { dark: 0, bg: ['#f7ecd2', '#eddaa9', '#cdac6a'], glow: '255,222,140', glowA: 0.70, glowAt: [0.5, 1.05, 0.72], ink: '#2a2017', dim: '#6a583a', red: '#b3382a', needle: '#16110c', style: 'line', noise: 0.06, vig: 0.50, gloss: 0.14 },
+  amber:       { dark: 0, bg: ['#ffdc95', '#f2a940', '#b06a1c'], glow: '255,190,90', glowA: 0.70, glowAt: [0.5, 1.05, 0.72], ink: '#2a1606', dim: '#6d3d12', red: '#9c2418', needle: '#170b02', style: 'line', noise: 0.06, vig: 0.52, gloss: 0.12 },
+  paperwhite:  { dark: 0, bg: ['#ffffff', '#f5f6f7', '#dde0e3'], glow: '255,255,255', glowA: 0, glowAt: [0.5, 1, 0.8], ink: '#14161a', dim: '#6f757c', red: '#d3202a', needle: '#14161a', style: 'band', noise: 0.03, vig: 0.12, gloss: 0.22 },
+  blackwhite:  { dark: 1, bg: ['#17181b', '#0d0e10', '#060607'], glow: '255,214,150', glowA: 0.16, glowAt: [0.5, 1.05, 0.55], ink: '#f3f4f6', dim: '#9a9fa6', red: '#e0332b', needle: '#ff8f52', needleGlow: '255,140,80', style: 'band', noise: 0.05, vig: 0.50, gloss: 0.05 },
+  night:       { dark: 1, lit: 1, bg: ['#0a1317', '#060c0f', '#020507'], glow: '110,225,255', glowA: 0.10, glowAt: [0.5, 1.0, 0.6], ink: '#8de6ff', dim: '#4ea9c6', red: '#ff4040', redGlow: '255,60,60', needle: '#9aeaff', needleGlow: '90,220,255', style: 'line', noise: 0.10, vig: 0.55, gloss: 0.05 },
+  iceblue:     { dark: 0, bg: ['#b3eaff', '#8bd9fa', '#58b8f0'], glow: '255,255,255', glowA: 0.40, glowAt: [0.5, 0.55, 0.85], ink: '#0a2a52', dim: '#2f6396', red: '#c4162d', needle: '#0a0f14', style: 'band', noise: 0.03, vig: 0.10, gloss: 0.10 },
+  blackorange: { dark: 1, lit: 1, bg: ['#0c0807', '#070504', '#020101'], glow: '255,100,40', glowA: 0.12, glowAt: [0.5, 1.0, 0.6], ink: '#ff8030', dim: '#c4521f', red: '#ff3b24', redGlow: '255,60,36', needle: '#fff4e8', needleGlow: '255,200,150', needleW: 0.55, style: 'line', noise: 0.06, vig: 0.55, gloss: 0.05 },
 };
+VU_FACES.white = VU_FACES.paperwhite;   // 舊設定相容
+// 外框材質:top/mid/bot 漸層;brush = 拉絲強度;chamfer 高光強度
 const VU_BEZELS = {
-  brass:    ['#ecdca8', '#b08f4c', '#5a4620'],
-  gunmetal: ['#7a8087', '#3a3e44', '#15171a'],
-  silver:   ['#f6f7f8', '#b9bdc2', '#6a6f75'],
-  black:    ['#46484d', '#1a1b1e', '#050506'],
+  matte:    { c: ['#464950', '#26282c', '#101113'], brush: 0.04, hi: 0.34 },
+  black:    { c: ['#34363a', '#16171a', '#060607'], brush: 0.03, hi: 0.26 },
+  gunmetal: { c: ['#6a707a', '#3c4047', '#17191c'], brush: 0.06, hi: 0.40 },
+  silver:   { c: ['#f0f2f4', '#c3c7cc', '#8d9298'], brush: 0.09, hi: 0.70 },
+  brass:    { c: ['#eddcab', '#bf9f5d', '#6f5827'], brush: 0.08, hi: 0.60 },
 };
-const SERIF = '"Palatino Linotype", Palatino, "Book Antiqua", Georgia, "Noto Serif", serif';
+const SANS = '"Helvetica Neue", "Segoe UI", "SF Pro Text", Arial, "Noto Sans", sans-serif';
 function rrect(x, X, Y, w, h, r) { x.beginPath(); x.moveTo(X + r, Y); x.arcTo(X + w, Y, X + w, Y + h, r); x.arcTo(X + w, Y + h, X, Y + h, r); x.arcTo(X, Y + h, X, Y, r); x.arcTo(X, Y, X + w, Y, r); x.closePath(); }
-const vuGeom = S => { const w = VU_A * S, h = S, bz = 0.08 * S, Ww = w - 2 * bz, Wh = h - 2 * bz; return { w, h, bz, Ww, Wh, px: w / 2, py: bz + 1.22 * Wh, R: 0.90 * Wh }; };
+const vuGeom = S => {   // 以「視窗」為座標原點:視窗尺寸 Ww×Wh,指針轉軸在視窗下方
+  const w = vuA() * S, h = S, m = 0.07 * S, Ww = w - 2 * m, Wh = h - 2 * m, th = VU_SWEEP * Math.PI / 180;
+  let R = 0.40 * Ww / Math.sin(th);
+  if (R * (1 - Math.cos(th)) > 0.34 * Wh) R = 0.34 * Wh / (1 - Math.cos(th));     // 窗太寬時限制弧度,避免刻度過扁
+  if (cfg.vuShape === 'flat') { const ys = 0.38 * Wh, hw = 0.40 * Ww, d = Math.max(0.76 * Wh, hw / 0.85); return { w, h, m, Ww, Wh, flat: true, ys, R: d, px: Ww / 2, py: ys + d, hw }; }
+  return { w, h, m, Ww, Wh, R, px: Ww / 2, py: 0.30 * Wh + R };
+};
+// 刻度座標:f = 0…1 位置;r = 弧形時為半徑,平直時為「相對刻度線的偏移 + R」(往外為正);回傳 [x, y, 與垂直的夾角]
+function vuPt(G, f, r) {
+  if (!G.flat) { const a = vuAng(f); return [G.px + Math.sin(a) * r, G.py - Math.cos(a) * r, a]; }
+  const bx = G.px + (2 * f - 1) * G.hw, dx = bx - G.px, dy = G.ys - G.py, n = Math.hypot(dx, dy), o = r - G.R;   // 刻度線與數字沿「轉軸→刻度點」方向放射,與指針同軸(Sony 式扇形)
+  return [bx + dx / n * o, G.ys + dy / n * o, Math.atan2(dx, -dy)];
+}
 function seeded(seed) { let a = seed >>> 0; return () => ((a = (a * 1664525 + 1013904223) >>> 0) / 4294967296); }
 let grainCv = null;
-function grain() {   // 紙面顆粒(一次性產生,所有錶頭共用)
+function grain() {   // 細顆粒(一次性產生,所有錶頭共用)
   if (grainCv) return grainCv;
-  const n = 128, cv = document.createElement('canvas'); cv.width = cv.height = n;
+  const n = 160, cv = document.createElement('canvas'); cv.width = cv.height = n;
   const x = cv.getContext('2d'), id = x.createImageData(n, n), r = seeded(7);
-  for (let i = 0; i < n * n; i++) { const v = 150 + r() * 105; id.data[4 * i] = id.data[4 * i + 1] = id.data[4 * i + 2] = v; id.data[4 * i + 3] = 255; }
+  for (let i = 0; i < n * n; i++) { const v = 90 + r() * 165; id.data[4 * i] = id.data[4 * i + 1] = id.data[4 * i + 2] = v; id.data[4 * i + 3] = 255; }
   x.putImageData(id, 0, 0); return (grainCv = cv);
 }
+const mk = (w, h, dpr) => { const cv = document.createElement('canvas'); cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr); const x = cv.getContext('2d'); x.scale(dpr, dpr); return [cv, x]; };
 
-function buildFace(S, dpr, c) {
-  const P = VU_FACES[cfg.vuFace] || VU_FACES.cream, B = VU_BEZELS[cfg.vuBezel] || VU_BEZELS.brass, G = vuGeom(S);
-  const { w, h, bz, Ww, Wh, px, py, R } = G, rnd = seeded(101);
-  const cv = document.createElement('canvas'); cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr);
-  const x = cv.getContext('2d'); x.scale(dpr, dpr);
-  const dbMode = cfg.vuScaleMode === 'db', H = cfg.vuHead;
-
-  // ── 外框:拉絲金屬 + 斜角高光 ──
-  let g = x.createLinearGradient(0, 0, 0, h); g.addColorStop(0, B[0]); g.addColorStop(0.45, B[1]); g.addColorStop(1, B[2]);
-  rrect(x, 0, 0, w, h, 0.07 * S); x.fillStyle = g; x.fill();
-  x.save(); rrect(x, 0, 0, w, h, 0.07 * S); x.clip();
-  for (let y = 0; y < h; y += 0.6) { x.fillStyle = rnd() > 0.5 ? `rgba(255,255,255,${rnd() * 0.07})` : `rgba(0,0,0,${rnd() * 0.08})`; x.fillRect(0, y, w, 0.6); }
-  g = x.createLinearGradient(0, 0, w, h); g.addColorStop(0, 'rgba(255,255,255,.30)'); g.addColorStop(0.5, 'rgba(255,255,255,0)'); g.addColorStop(1, 'rgba(0,0,0,.25)'); x.fillStyle = g; x.fillRect(0, 0, w, h);
+// ── 外框:霧面陽極氧化 / 拉絲金屬,斜角高光,窗口內凹;cells = 1(單表)或 2(雙表共用一個外框)──
+function buildHouse(S, dpr, cells) {
+  if (cfg.vuBezel === 'none') return mk(1, 1, 1)[0];   // 無外框:面板直接嵌在玻璃上
+  const { w, h, m, Ww, Wh } = vuGeom(S), W = w * cells, B = VU_BEZELS[cfg.vuBezel] || VU_BEZELS.silver, rr = 0.055 * S, rnd = seeded(31);
+  const [cv, x] = mk(W, h, dpr);
+  let g = x.createLinearGradient(0, 0, 0, h); g.addColorStop(0, B.c[0]); g.addColorStop(0.5, B.c[1]); g.addColorStop(1, B.c[2]);
+  rrect(x, 0, 0, W, h, rr); x.fillStyle = g; x.fill();
+  x.save(); rrect(x, 0, 0, W, h, rr); x.clip();
+  for (let y = 0; y < h; y += 0.5) { const v = rnd(); x.fillStyle = v > 0.5 ? `rgba(255,255,255,${(v - 0.5) * 2 * B.brush})` : `rgba(0,0,0,${(0.5 - v) * 2 * B.brush})`; x.fillRect(0, y, W, 0.5); }
+  g = x.createLinearGradient(0, 0, W, h); g.addColorStop(0, `rgba(255,255,255,${B.hi * 0.35})`); g.addColorStop(0.45, 'rgba(255,255,255,0)'); g.addColorStop(1, 'rgba(0,0,0,.25)'); x.fillStyle = g; x.fillRect(0, 0, W, h);
   x.restore();
-  rrect(x, 0.6, 0.6, w - 1.2, h - 1.2, 0.07 * S); g = x.createLinearGradient(0, 0, w, h); g.addColorStop(0, 'rgba(255,255,255,.75)'); g.addColorStop(0.5, 'rgba(255,255,255,.08)'); g.addColorStop(1, 'rgba(0,0,0,.55)');
-  x.strokeStyle = g; x.lineWidth = 1.2; x.stroke();
-  // ── 面板凹槽(內緣陰影) ──
-  rrect(x, bz - 0.014 * S, bz - 0.014 * S, Ww + 0.028 * S, Wh + 0.028 * S, 0.034 * S); x.fillStyle = 'rgba(0,0,0,.78)'; x.fill();
-
-  // ── 面板紙面 ──
-  x.save(); rrect(x, bz, bz, Ww, Wh, 0.026 * S); x.clip();
-  g = x.createRadialGradient(px, bz + Wh * 1.05, 0, px, bz + Wh * 1.05, Ww * 0.78);
-  g.addColorStop(0, P.c0); g.addColorStop(0.5, P.c1); g.addColorStop(1, P.c2); x.fillStyle = g; x.fillRect(bz, bz, Ww, Wh);
-  for (const fx of [0.26, 0.74]) {   // 背光燈泡光暈
-    const bx = bz + Ww * fx, by = bz + Wh * 1.0;
-    g = x.createRadialGradient(bx, by, 0, bx, by, Ww * 0.30); g.addColorStop(0, `rgba(${P.glow},.62)`); g.addColorStop(1, `rgba(${P.glow},0)`); x.fillStyle = g; x.fillRect(bz, bz, Ww, Wh);
+  rrect(x, 0.5, 0.5, W - 1, h - 1, rr); g = x.createLinearGradient(0, 0, 0, h); g.addColorStop(0, `rgba(255,255,255,${B.hi})`); g.addColorStop(0.5, `rgba(255,255,255,${B.hi * 0.15})`); g.addColorStop(1, 'rgba(0,0,0,.55)');
+  x.strokeStyle = g; x.lineWidth = 1; x.stroke();
+  rrect(x, 1.6, 1.6, W - 3.2, h - 3.2, rr - 1); x.strokeStyle = 'rgba(0,0,0,.18)'; x.lineWidth = 0.8; x.stroke();
+  for (let k = 0; k < cells; k++) {   // 窗口凹槽:外圈暗邊 + 底部亮緣
+    const X = k * w + m, e = 0.012 * S;
+    rrect(x, X - e, m - e, Ww + 2 * e, Wh + 2 * e, 0.03 * S);
+    g = x.createLinearGradient(0, m - e, 0, m + Wh + e); g.addColorStop(0, '#000'); g.addColorStop(1, '#101113'); x.fillStyle = g; x.fill();
+    rrect(x, X - e + 0.5, m - e + 0.5, Ww + 2 * e - 1, Wh + 2 * e - 1, 0.03 * S);
+    g = x.createLinearGradient(0, m - e, 0, m + Wh + e); g.addColorStop(0, 'rgba(0,0,0,.9)'); g.addColorStop(0.7, 'rgba(255,255,255,.04)'); g.addColorStop(1, `rgba(255,255,255,${0.10 + B.hi * 0.3})`);
+    x.strokeStyle = g; x.lineWidth = 1; x.stroke();
   }
-  x.globalCompositeOperation = 'multiply'; x.globalAlpha = 0.16; x.fillStyle = x.createPattern(grain(), 'repeat'); x.fillRect(bz, bz, Ww, Wh);   // 紙面顆粒
+  if (cells === 2) {   // 中央分隔溝
+    const dx = w, y0 = m * 0.7, y1 = h - m * 0.7;
+    g = x.createLinearGradient(dx - 1.5, 0, dx + 1.5, 0); g.addColorStop(0, 'rgba(0,0,0,.55)'); g.addColorStop(0.5, 'rgba(0,0,0,.25)'); g.addColorStop(1, `rgba(255,255,255,${0.12 + B.hi * 0.3})`);
+    x.fillStyle = g; x.fillRect(dx - 1.5, y0, 3, y1 - y0);
+  }
+  return cv;
+}
+
+// ── 視窗:紙面 / 玻璃下的發光面板,含刻度、字、玻璃反光、暗角 ──
+function buildWindow(S, dpr, c) {
+  const T = VU_FACES[cfg.vuFace] || VU_FACES.cream, G = vuGeom(S), { Ww, Wh, px, py, R } = G;
+  const [cv, x] = mk(Ww, Wh, dpr);
+  const dbMode = cfg.vuScaleMode === 'db', H = cfg.vuHead, band = T.style === 'band', bw = 0.030 * Wh;
+  rrect(x, 0, 0, Ww, Wh, 0.02 * S); x.clip();
+  const noF = cfg.vuBezel === 'none', soft = noF && T.dark;
+  let g;
+  if (!soft) {   // 深色無外框:完全透明(純黑玻璃),不畫任何底色/光暈/顆粒,避免形成陰影方塊
+  g = x.createLinearGradient(0, 0, 0, Wh); g.addColorStop(0, T.bg[0]); g.addColorStop(0.55, T.bg[1]); g.addColorStop(1, T.bg[2]); x.fillStyle = g; x.fillRect(0, 0, Ww, Wh);
+  if (T.glowA) { const [gx, gy, gr] = T.glowAt; g = x.createRadialGradient(Ww * gx, Wh * gy, 0, Ww * gx, Wh * gy, Ww * gr); g.addColorStop(0, `rgba(${T.glow},${T.glowA})`); g.addColorStop(1, `rgba(${T.glow},0)`); x.fillStyle = g; x.fillRect(0, 0, Ww, Wh); }
+  x.globalCompositeOperation = T.dark ? 'screen' : 'multiply'; x.globalAlpha = T.noise; x.fillStyle = x.createPattern(grain(), 'repeat'); x.fillRect(0, 0, Ww, Wh);
   x.globalCompositeOperation = 'source-over'; x.globalAlpha = 1;
-  g = x.createLinearGradient(0, bz, 0, bz + 0.2 * Wh); g.addColorStop(0, 'rgba(0,0,0,.42)'); g.addColorStop(1, 'rgba(0,0,0,0)'); x.fillStyle = g; x.fillRect(bz, bz, Ww, 0.2 * Wh);
-  for (const [x0, d] of [[bz, 1], [bz + Ww, -1]]) { g = x.createLinearGradient(x0, 0, x0 + d * 0.1 * Ww, 0); g.addColorStop(0, 'rgba(0,0,0,.30)'); g.addColorStop(1, 'rgba(0,0,0,0)'); x.fillStyle = g; x.fillRect(Math.min(x0, x0 + d * 0.1 * Ww), bz, 0.1 * Ww, Wh); }
-
-  // ── 刻度弧 ──
-  const lw = Math.max(0.8, 0.010 * Wh), a0 = vuAng(vuF(-20)) - Math.PI / 2, a1 = vuAng(vuF(0)) - Math.PI / 2, a2 = vuAng(1) - Math.PI / 2;
-  x.lineCap = 'butt'; x.strokeStyle = P.ink; x.lineWidth = lw * 1.1; x.beginPath(); x.arc(px, py, R, a0, a1); x.stroke();
-  x.strokeStyle = P.red; x.lineWidth = 0.046 * Wh; x.beginPath(); x.arc(px, py, R + 0.012 * Wh, a1, a2); x.stroke();     // 紅區粗帶
-  x.strokeStyle = 'rgba(255,255,255,.18)'; x.lineWidth = lw * 0.7; x.beginPath(); x.arc(px, py, R + 0.012 * Wh, a1, a2); x.stroke();
-  const tick = (db, len, w0, off = 0) => {
-    const a = vuAng(vuF(db)), sx = Math.sin(a), sy = -Math.cos(a);
-    x.strokeStyle = db > 0 ? P.red : P.ink; x.lineWidth = w0;
-    x.beginPath(); x.moveTo(px + sx * (R + off), py + sy * (R + off)); x.lineTo(px + sx * (R + off + len), py + sy * (R + off + len)); x.stroke();
-  };
-  for (const d of VU_FINE) tick(d, 0.030 * Wh, lw * 0.6);
-  for (const d of VU_MINOR) tick(d, 0.045 * Wh, lw * 0.75);
-  for (const d of VU_MAJOR) tick(d, 0.080 * Wh, lw * 1.25);
-  // 副刻度(內側 dBFS 小刻度):依 Headroom 換算,讓指針讀值可直接對應數位電平
-  x.font = `600 ${0.050 * Wh}px ${SERIF}`; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillStyle = P.ink; x.globalAlpha = 0.72;
-  for (const d of [-20, -10, -5, 0, 3]) {
-    const a = vuAng(vuF(d)), r = R - 0.085 * Wh, sx = Math.sin(a), sy = -Math.cos(a);
-    x.lineWidth = lw * 0.6; x.strokeStyle = P.ink; x.beginPath(); x.moveTo(px + sx * (R - 0.026 * Wh), py + sy * (R - 0.026 * Wh)); x.lineTo(px + sx * (R - 0.044 * Wh), py + sy * (R - 0.044 * Wh)); x.stroke();
-    x.fillText((d - H > 0 ? '+' : '') + (d - H), px + sx * r, py + sy * r);
   }
-  x.globalAlpha = 1;
-  // 主數字
-  x.font = `600 ${0.100 * Wh}px ${SERIF}`;
-  for (const d of VU_MAJOR) {
-    if (dbMode ? ![-20, -10, -5, 0, 3].includes(d) : d === -2) continue;
-    const a = vuAng(vuF(d)), r = R + 0.080 * Wh + 0.075 * Wh, lbl = dbMode ? ((d - H > 0 ? '+' : '') + (d - H)) : (d < 0 ? '−' + (-d) : String(d));
-    x.save(); x.translate(px + Math.sin(a) * r, py - Math.cos(a) * r); x.rotate(a * 0.55);   // 數字隨位置微傾
-    x.fillStyle = d > 0 ? P.red : P.ink; x.fillText(lbl, 0, 0); x.restore();
-  }
-  // 版面文字:左下 VU、右下聲道徽章、右上過載燈標示、底部 Headroom 註記
-  x.textAlign = 'left'; x.fillStyle = P.ink; x.font = `italic 700 ${0.24 * Wh}px ${SERIF}`; x.fillText('VU', bz + 0.05 * Ww, bz + 0.80 * Wh);
-  x.textAlign = 'center'; x.font = `700 ${0.11 * Wh}px ${SERIF}`;
-  const bx = bz + Ww - 0.09 * Ww, by = bz + 0.80 * Wh;
-  x.beginPath(); x.arc(bx, by, 0.095 * Wh, 0, 7); x.strokeStyle = P.ink; x.lineWidth = lw * 1.2; x.stroke();
-  x.beginPath(); x.arc(bx, by, 0.075 * Wh, 0, 7); x.lineWidth = lw * 0.5; x.stroke();
-  x.fillStyle = P.ink; x.fillText(c ? 'R' : 'L', bx, by + 0.006 * Wh);
-  x.font = `italic 600 ${0.045 * Wh}px ${SERIF}`; x.globalAlpha = 0.6; x.fillText(`0 VU = −${H} dBFS`, px, bz + 0.935 * Wh); x.globalAlpha = 1;
-  x.font = `700 ${0.040 * Wh}px ${SERIF}`; x.fillStyle = P.ink; x.globalAlpha = 0.7; x.fillText('OVER', bz + Ww - 0.062 * Wh, bz + 0.205 * Wh); x.globalAlpha = 1;
 
-  // ── 玻璃反光與背光亮度 ──
-  g = x.createLinearGradient(bz, bz, bz + Ww * 0.8, bz + Wh); g.addColorStop(0, 'rgba(255,255,255,.22)'); g.addColorStop(0.36, 'rgba(255,255,255,.06)'); g.addColorStop(0.37, 'rgba(255,255,255,0)');
-  x.fillStyle = g; x.fillRect(bz, bz, Ww, Wh);
-  if (cfg.vuLight < 1) { x.fillStyle = `rgba(0,0,0,${(1 - cfg.vuLight) * 0.78})`; x.fillRect(bz, bz, Ww, Wh); }
-  x.restore();
-  // 面板下緣斜角高光
-  g = x.createLinearGradient(0, bz, 0, bz + Wh); g.addColorStop(0, 'rgba(0,0,0,.65)'); g.addColorStop(0.5, 'rgba(255,255,255,0)'); g.addColorStop(1, 'rgba(255,255,255,.35)');
-  rrect(x, bz, bz, Ww, Wh, 0.026 * S); x.strokeStyle = g; x.lineWidth = 1.1; x.stroke();
-  // ── 螺絲(四角)與歸零螺絲 ──
-  const screw = (sx, sy, r, rot) => {
-    const sg = x.createRadialGradient(sx - r * 0.3, sy - r * 0.35, r * 0.1, sx, sy, r); sg.addColorStop(0, '#f1f1ee'); sg.addColorStop(0.6, '#9b9a95'); sg.addColorStop(1, '#4a4944');
-    x.beginPath(); x.arc(sx, sy, r, 0, 7); x.fillStyle = sg; x.fill(); x.lineWidth = Math.max(0.6, r * 0.12); x.strokeStyle = 'rgba(0,0,0,.55)'; x.stroke();
-    x.save(); x.translate(sx, sy); x.rotate(rot); x.fillStyle = 'rgba(20,18,14,.85)'; x.fillRect(-r * 0.78, -r * 0.1, r * 1.56, r * 0.2); x.restore();
+  // 刻度
+  const lw = Math.max(0.7, 0.0065 * Wh), f0 = vuF(-20), f1 = vuF(0), f2 = 1;
+  const P = (r, db) => vuPt(G, vuF(db), r);
+  // 數字用:平直款排成水平一列(y 固定),x 仍落在該刻度的放射線上
+  const PN = (r, db) => { if (!G.flat) return P(r, db); const q = P(R, db), t = P(R + 1, db), k = (G.ys - (r - R) - q[1]) / (t[1] - q[1]); return [q[0] + (t[0] - q[0]) * k, G.ys - (r - R), q[2]]; };
+  const span = (r, fa, fb) => { if (!G.flat) x.arc(px, py, r, vuAng(fa) - Math.PI / 2, vuAng(fb) - Math.PI / 2); else { const p = vuPt(G, fa, r), q = vuPt(G, fb, r); x.moveTo(p[0], p[1]); x.lineTo(q[0], q[1]); } };
+  const spanLen = (r, fa, fb) => G.flat ? Math.hypot(...vuPt(G, fb, r).slice(0, 2).map((v, i) => v - vuPt(G, fa, r)[i])) : r * (vuAng(fb) - vuAng(fa));
+  const sh = (bloom, rgb) => { if (bloom) { x.shadowColor = `rgba(${rgb},.95)`; x.shadowBlur = 0.05 * Wh * dpr; } else { x.shadowColor = 'transparent'; x.shadowBlur = 0; } };
+  const tick = (db, r0, len, wd, col) => { const [x0, y0] = P(r0, db), [x1, y1] = P(r0 + len, db); x.strokeStyle = col; x.lineWidth = wd; x.beginPath(); x.moveTo(x0, y0); x.lineTo(x1, y1); x.stroke(); };
+  const pct = p => (p <= 0 ? -20 : Math.max(-20, 20 * Math.log10(p / 100)));
+  const scale = bloom => {
+    x.lineCap = 'butt'; x.textAlign = 'center'; x.textBaseline = 'middle';
+    const rg = T.redGlow || T.glow, tk = (db, f, len, wd) => band ? tick(db, R - bw / 2 - 0.004 * Wh, -len, wd, db > 0 ? T.red : T.ink) : tick(db, R, len, wd, db > 0 ? T.red : T.ink);
+    sh(bloom, T.glow);
+    if (band) { x.strokeStyle = T.ink; x.lineWidth = bw; x.beginPath(); span(R, f0, f1); x.stroke(); }
+    else { x.strokeStyle = T.ink; x.lineWidth = lw; x.beginPath(); span(R, f0, f1); x.stroke(); }
+    sh(bloom, rg); x.strokeStyle = T.red;   // 紅區:色帶(band 為分節)
+    if (band) {
+      const L = spanLen(R, f1, f2), gp = L * 0.04, dash = (L - 4 * gp) / 5; x.save(); x.setLineDash([dash, gp]); x.lineWidth = bw; x.beginPath(); span(R, f1, f2); x.stroke(); x.restore();
+    } else { x.lineWidth = 0.024 * Wh; x.beginPath(); span(R + 0.005 * Wh, f1, f2); x.stroke(); }
+    sh(bloom, T.glow);
+    for (const d of VU_FINE) tk(d, 0, 0.022 * Wh, lw * 0.55);
+    for (const d of VU_MINOR) tk(d, 0, 0.032 * Wh, lw * 0.7);
+    for (const d of VU_MAJOR) { sh(bloom, d > 0 ? rg : T.glow); tk(d, 0, 0.052 * Wh, lw * 1.2); }
+    // 主數字
+    x.font = `${T.lit ? 600 : 600} ${0.072 * Wh}px ${SANS}`;
+    const rn = R + (band ? bw / 2 + 0.060 * Wh : 0.052 * Wh + 0.060 * Wh);
+    for (const d of VU_MAJOR) {
+      if (dbMode ? ![-20, -10, -5, 0, 3].includes(d) : d === -2) continue;
+      const [tx, ty, a] = PN(rn, d), v = dbMode ? d - H : d, lbl = v < 0 ? '−' + (-v) : (v > 0 ? '+' + v : '0');
+      sh(bloom, d > 0 ? rg : T.glow); x.save(); x.translate(tx, ty); x.rotate(G.flat ? 0 : a * 0.85); x.fillStyle = d > 0 ? T.red : T.ink; x.fillText(lbl, 0, 0); x.restore();
+    }
+    // 副刻度:% (VU 模式) 或 VU 值(dBFS 模式),字小、淡色
+    sh(bloom, T.glow);
+    const Rs = R - (band ? bw / 2 + 0.100 * Wh : 0.078 * Wh);
+    x.globalAlpha = bloom ? 0.8 : 0.9;
+    if (!band) { x.strokeStyle = T.dim; x.lineWidth = lw * 0.55; x.beginPath(); span(Rs, f0, f1); x.stroke(); }
+    const sec = dbMode ? [-20, -10, -5, 0, 3].map(d => [d, (d < 0 ? '−' + (-d) : d > 0 ? '+' + d : '0')]) : [0, 20, 40, 60, 80, 100].map(p => [pct(p), String(p)]);
+    if (!dbMode) for (const p of [10, 30, 50, 70, 90]) tick(pct(p), Rs, 0.016 * Wh, lw * 0.5, T.dim);
+    x.font = `500 ${0.043 * Wh}px ${SANS}`;
+    for (const [d, lbl] of sec) {
+      tick(d, Rs, 0.026 * Wh, lw * 0.7, T.dim);
+      const [tx, ty, a] = PN(Rs - 0.040 * Wh, d); x.save(); x.translate(tx, ty); x.rotate(G.flat ? 0 : a * 0.85); x.fillStyle = T.dim; x.fillText(lbl, 0, 0); x.restore();
+    }
+    x.globalAlpha = 1;
   };
-  const sr = 0.022 * S, so = bz * 0.5;
-  screw(so, so, sr, 0.6); screw(w - so, so, sr, -0.4); screw(so, h - so, sr, 1.1); screw(w - so, h - so, sr, 0.2);
-  screw(w / 2, h - bz * 0.5, 0.026 * S, 0.35);
+  const texts = bloom => {
+    sh(bloom, T.glow); x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillStyle = T.ink;
+    if ('letterSpacing' in x) x.letterSpacing = `${0.06 * 0.17 * Wh}px`;
+    x.font = `${T.lit ? 400 : 300} ${0.15 * Wh}px ${SANS}`; x.fillText('VU', px, 0.69 * Wh);
+    if ('letterSpacing' in x) x.letterSpacing = `${0.30 * 0.036 * Wh}px`;
+    x.font = `500 ${0.036 * Wh}px ${SANS}`; x.globalAlpha = 0.62; x.fillText(c === 2 ? 'L + R' : c ? 'RIGHT' : 'LEFT', px, 0.84 * Wh);
+    if ('letterSpacing' in x) x.letterSpacing = `${0.08 * 0.032 * Wh}px`;
+    x.font = `400 ${0.032 * Wh}px ${SANS}`; x.globalAlpha = 0.55; x.fillText(`0 VU = −${H} dBFS`, px, 0.93 * Wh); x.globalAlpha = 1;
+    if ('letterSpacing' in x) x.letterSpacing = '0px';
+  };
+  if (T.lit) { x.save(); scale(true); texts(true); x.restore(); sh(false); }
+  scale(false); texts(false); sh(false);
+  // 過載燈標示(燈本體每幀繪製)
+  x.fillStyle = T.dim; x.textAlign = 'center'; x.font = `500 ${0.028 * Wh}px ${SANS}`; x.globalAlpha = 0.7;
+  if ('letterSpacing' in x) x.letterSpacing = `${0.2 * 0.028 * Wh}px`;
+  x.fillText('OVER', Ww - 0.085 * Wh, 0.175 * Wh); x.globalAlpha = 1; if ('letterSpacing' in x) x.letterSpacing = '0px';
+  // 不加玻璃反光 / 暗角 / 內緣陰影:面板亮度均勻,讀數不被陰影遮蔽
+  if (noF && !T.dark) { x.strokeStyle = 'rgba(0,0,0,.6)'; x.lineWidth = Math.max(2, 0.008 * S * 2); rrect(x, 0, 0, Ww, Wh, 0.012 * S); x.stroke(); }   // 淺色無外框:銳利細邊,不漏光
+  if (cfg.vuLight < 1) { x.fillStyle = `rgba(0,0,0,${(1 - cfg.vuLight) * 0.78})`; x.fillRect(0, 0, Ww, Wh); }
   return cv;
 }
 
 function drawVU(t) {
-  const cx = meter.cx, vert = isVert(), dpr = meter.dpr || 1, A = VU_A, full = isFull(cfg), Wc = meter.w, Hc = meter.h;
+  const cx = meter.cx, vert = isVert(), dpr = meter.dpr || 1, A = vuA(), full = isFull(cfg), Wc = meter.w, Hc = meter.h, nM = monoM() ? 1 : 2, pair = !!cfg.vuPair && nM === 2;
   cx.setTransform(dpr, 0, 0, dpr, 0, 0); cx.clearRect(0, 0, Wc, Hc);
-  let S, spots;
+  let S, spots, gap = 0, stackedB = false;
   if (full) {   // 全螢幕:橫放左右並排、直放上下疊,錶頭盡量放大
-    const land = Wc >= Hc, sc = cfg.vuScale / 100, gap = Math.round(Math.min(Wc, Hc) * 0.035);
-    S = Math.floor((land ? Math.min((Wc - gap) / 2 / A, Hc) : Math.min(Wc / A, (Hc - gap) / 2)) * sc);
+    const land = Wc >= Hc, sc = cfg.vuScale / 100; gap = pair ? 0 : Math.round(Math.min(Wc, Hc) * 0.035);
+    S = Math.floor((nM === 1 ? Math.min(Wc / A, Hc) : land ? Math.min((Wc - gap) / 2 / A, Hc) : Math.min(Wc / A, (Hc - gap) / 2)) * sc);
     if (S < 30) return;
     const g = cx.createRadialGradient(Wc / 2, Hc / 2, 0, Wc / 2, Hc / 2, Math.max(Wc, Hc) * 0.7);
-    g.addColorStop(0, '#1c1d20'); g.addColorStop(1, '#050506'); cx.fillStyle = g; cx.fillRect(0, 0, Wc, Hc);
-    spots = c => land ? { X: (Wc - (2 * A * S + gap)) / 2 + c * (A * S + gap), Y: (Hc - S) / 2 } : { X: (Wc - A * S) / 2, Y: (Hc - (2 * S + gap)) / 2 + c * (S + gap) };
+    g.addColorStop(0, '#17181b'); g.addColorStop(1, '#040405'); cx.fillStyle = g; cx.fillRect(0, 0, Wc, Hc);
+    spots = nM === 1 ? (() => ({ X: (Wc - A * S) / 2, Y: (Hc - S) / 2 })) : c => land ? { X: (Wc - (2 * A * S + gap)) / 2 + c * (A * S + gap), Y: (Hc - S) / 2 } : { X: (Wc - A * S) / 2, Y: (Hc - (2 * S + gap)) / 2 + c * (S + gap) };
+    if (!land) pair && (gap = 0);
   } else if (!vert) {
-    const T = Math.min(cfg.vuSize, Hc), gap = Math.round(T * 0.06);
-    S = Math.min(T, Math.floor((Wc - gap - 8) / 2 / A)); if (S < 30) return;
-    spots = c => ({ X: (Wc - (2 * A * S + gap)) / 2 + c * (A * S + gap), Y: (Hc - S) / 2 });
+    if (nM === 2 && window.innerHeight > window.innerWidth) {   // 手機直立:兩個錶頭上下疊放,各自一個外框
+      S = Math.min(cfg.vuSize, Math.floor((Wc - 8) / A), Math.floor((Hc - 8) / 2.06)); gap = Math.round(S * 0.06); stackedB = true; if (S < 30) return;
+      spots = c => ({ X: (Wc - A * S) / 2, Y: (Hc - (2 * S + gap)) / 2 + c * (S + gap) });
+    } else {
+    const T = Math.min(cfg.vuSize, Hc); gap = pair ? 0 : Math.round(T * 0.06);
+    S = Math.min(T, Math.floor((Wc - gap * (nM - 1) - 8) / nM / A)); if (S < 30) return;
+    spots = c => ({ X: (Wc - (nM * A * S + gap * (nM - 1))) / 2 + c * (A * S + gap), Y: (Hc - S) / 2 });
+    }
   } else {
-    const Tw = Math.min(cfg.vuSize * A, Wc), gap = Math.round(cfg.vuSize * 0.06), off = cfg.meterPos === 'left' ? Wc - Tw : 0;
-    S = Math.min(cfg.vuSize, Math.floor(Tw / A), Math.floor((Hc - gap - 8) / 2)); if (S < 30) return;
-    spots = c => ({ X: off + (Tw - A * S) / 2, Y: (Hc - (2 * S + gap)) / 2 + c * (S + gap) });
+    gap = nM === 2 ? 6 : 0; const Tw = Wc - ((mpos() === 'left' ? meter.inL : meter.inR) || 0), off = mpos() === 'left' ? Wc - Tw : 0;   // 左側時讓出瀏海(安全區域)
+    S = Math.min(Math.floor(Tw / A), Math.floor((Hc - gap * (nM - 1) - 8) / nM)); if (S < 30) return;
+    spots = c => ({ X: off + (Tw - A * S) / 2, Y: (Hc - (nM * S + gap * (nM - 1))) / 2 + c * (S + gap) });
   }
-  const key = [S, dpr, cfg.vuFace, cfg.vuBezel, cfg.vuLight, cfg.vuHead, cfg.vuScaleMode].join('|');
-  if (VU.key !== key) { VU.face = [buildFace(S, dpr, 0), buildFace(S, dpr, 1)]; VU.key = key; }
-  const P = VU_FACES[cfg.vuFace] || VU_FACES.cream, G = vuGeom(S), { bz, Ww, Wh, px, py, R } = G;
-  for (let c = 0; c < 2; c++) {
+  const stackV = full ? Wc < Hc : vert || stackedB;   // 直排時雙表上下疊:共用外框不適用,各自一個外框
+  const usePair = pair && !stackV;
+  const key = [S, dpr, A, nM, usePair, cfg.vuFace, cfg.vuBezel, cfg.vuLight, cfg.vuHead, cfg.vuScaleMode, cfg.vuShape].join('|');
+  if (VU.key !== key) { VU.house = buildHouse(S, dpr, usePair ? 2 : 1); VU.win = nM === 1 ? [buildWindow(S, dpr, 2), null] : [buildWindow(S, dpr, 0), buildWindow(S, dpr, 1)]; VU.key = key; }
+  const T = VU_FACES[cfg.vuFace] || VU_FACES.cream, G = vuGeom(S), { m, Ww, Wh, px, py, R } = G;
+  const noFrame = cfg.vuBezel === 'none';
+  if (!noFrame) { cx.save(); cx.shadowColor = 'rgba(0,0,0,.55)'; cx.shadowBlur = 0.05 * S * dpr; cx.shadowOffsetY = 0.02 * S * dpr;
+  if (usePair) cx.drawImage(VU.house, spots(0).X, spots(0).Y, 2 * G.w, G.h); else for (let c = 0; c < nM; c++) cx.drawImage(VU.house, spots(c).X, spots(c).Y, G.w, G.h);
+  cx.restore(); }
+  for (let c = 0; c < nM; c++) {
     const { X, Y } = spots(c);
-    cx.drawImage(VU.face[c], X, Y, G.w, G.h);
-    // 指針:漸細錐形、帶投影,限制在面板內
-    const f = Math.max(0, Math.min(1.06, VU.x[c] / 1.4125)), a = vuAng(f), sx = Math.sin(a), sy = -Math.cos(a), nx = -sy, ny = sx;
-    const len = R * 1.10, w0 = Math.max(1, 0.0085 * Wh), w1 = Math.max(0.5, 0.0035 * Wh), ox = X + px, oy = Y + py;
-    cx.save(); rrect(cx, X + bz, Y + bz, Ww, Wh, 0.026 * S); cx.clip();
-    cx.shadowColor = 'rgba(0,0,0,.38)'; cx.shadowBlur = 0.02 * S * dpr; cx.shadowOffsetX = 0.016 * S * dpr; cx.shadowOffsetY = 0.022 * S * dpr;
-    cx.fillStyle = P.needle; cx.beginPath();
+    const WX = X + m, WY = Y + m;
+    cx.drawImage(VU.win[c], WX, WY, Ww, Wh);
+    // 指針:漸細錐形;深色面板帶柔光、淺色面板帶柔和投影(指針浮在面板上)
+    const f = Math.max(0, Math.min(1.06, VU.x[c] / 1.4125)), tp = vuPt(G, f, R + 0.075 * Wh), a = tp[2], sx = Math.sin(a), sy = -Math.cos(a), nx = -sy, ny = sx;
+    const len = Math.hypot(tp[0] - px, tp[1] - py), k = T.needleW || 1, w0 = Math.max(1, 0.0085 * Wh * k), w1 = Math.max(0.45, 0.0024 * Wh * k), ox = WX + px, oy = WY + py;
+    cx.save(); rrect(cx, WX, WY, Ww, Wh, 0.02 * S); cx.clip();
+    if (T.needleGlow) { cx.shadowColor = `rgba(${T.needleGlow},.9)`; cx.shadowBlur = 0.035 * Wh * dpr; }
+    cx.fillStyle = T.needle; cx.beginPath();
     cx.moveTo(ox + nx * w0, oy + ny * w0); cx.lineTo(ox + sx * len + nx * w1, oy + sy * len + ny * w1);
     cx.lineTo(ox + sx * len - nx * w1, oy + sy * len - ny * w1); cx.lineTo(ox - nx * w0, oy - ny * w0); cx.closePath(); cx.fill();
-    cx.shadowColor = 'transparent'; cx.strokeStyle = 'rgba(255,255,255,.22)'; cx.lineWidth = Math.max(0.5, w1 * 0.5);   // 針身高光
-    cx.beginPath(); cx.moveTo(ox + nx * w0 * 0.3, oy + ny * w0 * 0.3); cx.lineTo(ox + sx * len * 0.97, oy + sy * len * 0.97); cx.stroke();
-    // 面板下緣陰影(針從下方鑽出的立體感)
-    const sg = cx.createLinearGradient(0, Y + bz + Wh - 0.05 * Wh, 0, Y + bz + Wh); sg.addColorStop(0, 'rgba(0,0,0,0)'); sg.addColorStop(1, 'rgba(0,0,0,.35)');
-    cx.fillStyle = sg; cx.fillRect(X + bz, Y + bz + Wh - 0.05 * Wh, Ww, 0.05 * Wh);
-    cx.restore();
+    cx.shadowColor = 'transparent'; cx.shadowBlur = 0; cx.shadowOffsetX = cx.shadowOffsetY = 0;
+    // 窗口下緣暗影:指針由下方鑽出
     // 過載燈(右上):亮 1 秒後 3 秒淡出,門檻 -0.009 dBFS
     const dt = t - meter.clip[c], I = dt < 1000 ? 1 : Math.max(0, 1 - (dt - 1000) / 3000);
-    const lx = X + bz + Ww - 0.062 * Wh, ly = Y + bz + 0.085 * Wh, lr = 0.040 * Wh;
-    const ring = cx.createLinearGradient(lx - lr, ly - lr, lx + lr, ly + lr); ring.addColorStop(0, '#f2f2ee'); ring.addColorStop(0.5, '#8d8b85'); ring.addColorStop(1, '#3d3c38');
-    cx.fillStyle = ring; cx.beginPath(); cx.arc(lx, ly, lr * 1.28, 0, 7); cx.fill();
-    cx.save(); if (I > 0) { cx.shadowColor = `rgba(255,60,40,${I})`; cx.shadowBlur = 0.09 * S * dpr; }
-    const lens = cx.createRadialGradient(lx - lr * 0.3, ly - lr * 0.3, lr * 0.1, lx, ly, lr);
-    lens.addColorStop(0, `rgb(${Math.round(90 + 165 * I)},${Math.round(40 + 40 * I)},${Math.round(30 + 20 * I)})`); lens.addColorStop(1, `rgb(${Math.round(40 + 190 * I)},${Math.round(12 + 18 * I)},${Math.round(10 + 10 * I)})`);
-    cx.fillStyle = lens; cx.beginPath(); cx.arc(lx, ly, lr, 0, 7); cx.fill(); cx.restore();
-    cx.fillStyle = 'rgba(255,255,255,.45)'; cx.beginPath(); cx.arc(lx - lr * 0.32, ly - lr * 0.34, lr * 0.26, 0, 7); cx.fill();
+    const lx = WX + Ww - 0.085 * Wh, ly = WY + 0.095 * Wh, lr = 0.026 * Wh;
+    cx.fillStyle = 'rgba(0,0,0,.55)'; cx.beginPath(); cx.arc(lx, ly, lr * 1.35, 0, 7); cx.fill();
+    cx.save(); if (I > 0) { cx.shadowColor = `rgba(255,50,35,${I})`; cx.shadowBlur = 0.10 * Wh * dpr; }
+    cx.fillStyle = `rgb(${Math.round(70 + 185 * I)},${Math.round(14 + 36 * I)},${Math.round(12 + 22 * I)})`; cx.beginPath(); cx.arc(lx, ly, lr, 0, 7); cx.fill(); cx.restore();
+    cx.fillStyle = `rgba(255,255,255,${0.10 + 0.25 * I})`; cx.beginPath(); cx.arc(lx - lr * 0.3, ly - lr * 0.32, lr * 0.28, 0, 7); cx.fill();
+    cx.restore();
   }
 }
 
@@ -856,7 +960,7 @@ const rows = [];   // 目前分頁中的控制列,用於顯示條件重算
 function refreshVisibility() { for (const { el, it } of rows) el.hidden = it.w ? !it.w(cfg) : false; }
 
 function control(it) {
-  const row = document.createElement('div'); row.className = 'row' + (it.t === 'range' ? ' range' : '');
+  const row = document.createElement('div'); row.className = 'row' + (it.t === 'range' ? ' range' : it.t === 'select' ? ' sel' : '');
   const nm = document.createElement('div'); nm.className = 'nm'; nm.textContent = it.l;
   if (it.hint) { const h = document.createElement('span'); h.className = 'hint'; h.textContent = it.hint; nm.append(h); }
   row.append(nm);
@@ -868,13 +972,23 @@ function control(it) {
     const val = document.createElement('span'); val.className = 'v'; val.textContent = v;
     const el = Object.assign(document.createElement('input'), { type: 'range', min: it.min, max: it.max, step: it.step, value: v });
     el.oninput = () => { val.textContent = el.value; set(it.k, +el.value); };
+    if (it.k === 'vuHead') el.onchange = () => renderTab();   // 放開滑桿後刷新上方的校準標準選單
     row.append(val, el);
     row.ondblclick = () => { el.value = DEFAULTS[it.k]; el.oninput(); };   // 連點兩下回預設
   } else {
-    const el = document.createElement('select');
-    for (const [ov, ol] of it.opts) el.append(new Option(ol, ov));
-    el.value = String(v);
-    el.onchange = () => set(it.k, it.num ? +el.value : el.value); row.append(el);
+    // 選項一律用按鈕群組(不用下拉選單):手機單手一點就選到
+    const seg = document.createElement('div'); seg.className = 'seg' + (it.opts.length > 6 ? ' many' : '');
+    const opts = it.opts.map(o => [String(o[0]), o[1]]);
+    if (!opts.some(o => o[0] === String(v))) opts.push([String(v), `自訂 ${v}`]);   // 目前值不在選項內(例如用滑桿微調)
+    const dot = ov => it.k === 'vuFace' ? (VU_FACES[ov] || {}).bg?.[1] : it.k === 'vuBezel' ? (VU_BEZELS[ov] || {}).c?.[1] : null;
+    const btns = opts.map(([ov, ol]) => {
+      const b = document.createElement('button'); b.type = 'button';
+      const c = dot(ov); if (c) { const i = document.createElement('i'); i.style.background = c; b.append(i); }
+      b.append(ol); b.dataset.v = ov;
+      b.onclick = () => { set(it.k, it.num ? +ov : ov); btns.forEach(x => x.classList.toggle('on', x === b)); if (it.k === 'vuHead') renderTab(); };
+      b.classList.toggle('on', ov === String(v)); seg.append(b); return b;
+    });
+    row.append(seg);
   }
   rows.push({ el: row, it });
   return row;
@@ -1012,6 +1126,7 @@ $('fs').onclick = () => {
   const el = document.documentElement;
   (document.fullscreenElement ? document.exitFullscreen() : (el.requestFullscreen || el.webkitRequestFullscreen)?.call(el));
 };
+window.addEventListener('resize', () => { if (meter.cx && !isFull(cfg) && cfg.meterOn && (vuShown(cfg) || cfg.meterPos === 'auto')) applyMeter(); });   // 轉向時重算下方 VU 高度
 buildTabs();
 try { if (sessionStorage.getItem('resume') === '1') { sessionStorage.removeItem('resume'); startApp(true); } } catch {}
 pullPresets();
