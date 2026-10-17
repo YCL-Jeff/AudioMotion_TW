@@ -652,11 +652,12 @@ const VU_BEZELS = {
 };
 const SANS = '"Helvetica Neue", "Segoe UI", "SF Pro Text", Arial, "Noto Sans", sans-serif';
 function rrect(x, X, Y, w, h, r) { x.beginPath(); x.moveTo(X + r, Y); x.arcTo(X + w, Y, X + w, Y + h, r); x.arcTo(X + w, Y + h, X, Y + h, r); x.arcTo(X, Y + h, X, Y, r); x.arcTo(X, Y, X + w, Y, r); x.closePath(); }
+// 平直款:轉軸很遠,指針最大偏角約 22°,幾乎垂直,露出長度穩定(同 Sony 實機)
 const vuGeom = S => {   // 以「視窗」為座標原點:視窗尺寸 Ww×Wh,指針轉軸在視窗下方
   const w = vuA() * S, h = S, m = 0.07 * S, Ww = w - 2 * m, Wh = h - 2 * m, th = VU_SWEEP * Math.PI / 180;
   let R = 0.40 * Ww / Math.sin(th);
   if (R * (1 - Math.cos(th)) > 0.34 * Wh) R = 0.34 * Wh / (1 - Math.cos(th));     // 窗太寬時限制弧度,避免刻度過扁
-  if (cfg.vuShape === 'flat') { const ys = 0.38 * Wh, hw = 0.40 * Ww, d = Math.max(0.76 * Wh, hw / 0.85); return { w, h, m, Ww, Wh, flat: true, ys, R: d, px: Ww / 2, py: ys + d, hw }; }
+  if (cfg.vuShape === 'flat') { const ys = 0.38 * Wh, hw = 0.40 * Ww, d = Math.max(0.9 * Wh, hw / Math.tan(22 * Math.PI / 180)); return { w, h, m, Ww, Wh, flat: true, ys, R: d, px: Ww / 2, py: ys + d, hw }; }
   return { w, h, m, Ww, Wh, R, px: Ww / 2, py: 0.30 * Wh + R };
 };
 // 刻度座標:f = 0…1 位置;r = 弧形時為半徑,平直時為「相對刻度線的偏移 + R」(往外為正);回傳 [x, y, 與垂直的夾角]
@@ -829,7 +830,7 @@ function drawVU(t) {
     const WX = X + m, WY = Y + m;
     cx.drawImage(VU.win[c], WX, WY, Ww, Wh);
     // 指針:漸細錐形;深色面板帶柔光、淺色面板帶柔和投影(指針浮在面板上)
-    const f = Math.max(0, Math.min(1.06, VU.x[c] / 1.4125)), tp = vuPt(G, f, R + 0.075 * Wh), a = tp[2], sx = Math.sin(a), sy = -Math.cos(a), nx = -sy, ny = sx;
+    const f = Math.max(0, Math.min(1.06, VU.x[c] / 1.4125)), tp = vuPt(G, f, R + (G.flat ? 0.012 : 0.075) * Wh), a = tp[2], sx = Math.sin(a), sy = -Math.cos(a), nx = -sy, ny = sx;
     const len = Math.hypot(tp[0] - px, tp[1] - py), k = T.needleW || 1, w0 = Math.max(1, 0.0085 * Wh * k), w1 = Math.max(0.45, 0.0024 * Wh * k), ox = WX + px, oy = WY + py;
     cx.save(); rrect(cx, WX, WY, Ww, Wh, 0.02 * S); cx.clip();
     if (T.needleGlow) { cx.shadowColor = `rgba(${T.needleGlow},.9)`; cx.shadowBlur = 0.035 * Wh * dpr; }
