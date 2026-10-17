@@ -1,150 +1,137 @@
-# AudioMotion_TW — LAN Spectrum & VU Streamer
+# AudioMotion_TW — 區網頻譜與 VU 串流
 
-[繁體中文](README.zh-TW.md) · **English**
+**繁體中文** · [English](README.en.md)
 
-Stream whatever your PC is playing (Tidal / YouTube / local player) over Wi-Fi and watch it on your phone as a
-hi-fi style LED spectrum analyzer ([audioMotion-analyzer](https://github.com/hvianna/audioMotion-analyzer)) or as a
-pair of analog VU meters.
+電腦播放的任何聲音(Tidal / YouTube / 本機播放器)→ 擷取 → Wi-Fi → 手機瀏覽器用
+[audioMotion-analyzer](https://github.com/hvianna/audioMotion-analyzer) 顯示 LED 頻譜。
 
 
-<p align="center">
-  <img src="docs/images/lr-split.jpg" alt="Left / right channel spectrum side by side with level bars" width="100%">
-</p>
-<p align="center">
-  <img src="docs/images/vu-meters.jpg" alt="Fullscreen analog VU meters, left and right" width="100%">
-</p>
+<table>
+  <tr>
+    <td width="50%"><img src="docs/images/lr-split.jpg" alt="左右聲道頻譜"></td>
+    <td width="50%"><img src="docs/images/vu-meters.jpg" alt="左右 VU 錶頭"></td>
+  </tr>
+  <tr><td align="center">LED / 頻譜(左右聲道)</td><td align="center">類比 VU 錶頭</td></tr>
+</table>
 
 <details>
-<summary>More screenshots</summary>
+<summary>更多截圖</summary>
 
-| L/R blend overlay | LED spectrum + vertical meter |
+| 左右疊圖(混色) | LED 頻譜 + 右側直式電平表 |
 |---|---|
 | <img src="docs/images/lr-overlay.jpg" width="100%"> | <img src="docs/images/led-vertical-meter.jpg" width="100%"> |
 
 </details>
 
-## Architecture
+## 架構
 ```
-PC:    player → default speakers (plays as usual)
-              └─ WASAPI loopback (read-only tap) → server.py ─ WebSocket (PCM 16-bit) ─┐
-Phone: browser ← Web Audio (muted output) → audioMotion analysis/rendering ←───────────┘
+電腦: 播放器 → 預設喇叭(照常出聲)
+              └─ WASAPI loopback(唯讀旁聽) → server.py ─ WebSocket(PCM 16-bit) ─┐
+手機: 瀏覽器 ← Web Audio(靜音輸出)→ audioMotion 分析/繪圖 ←──────────────────────┘
 ```
-- **No sound-card changes**: loopback is a read-only tap. No default-device switching, no "Stereo Mix", no virtual
-  audio driver, no volume/enhancement changes.
-- **Low power**: nothing is captured while no phone is connected; the phone disconnects and stops drawing when the
-  page goes to the background or the screen locks.
-- About 1.5 Mbps (48 kHz, 16-bit, stereo). The FFT runs on the phone; the PC does almost no computation.
+- **不改動音效卡**:loopback 只是唯讀旁聽,不切換預設裝置、不開「立體聲混音」、不裝虛擬音效卡、不動音量/增強。
+- **省電**:沒有手機連線時完全不擷取;手機切到背景/鎖屏會自動斷線並停止繪圖。
+- 頻寬約 1.5 Mbps(48 kHz、16-bit、立體聲);手機端 FFT 由手機算,電腦端幾乎零運算。
 
-## Quick start
+## 快速開始
 
-### 1. On the PC (Windows)
-1. Install Python 3.9+ (tick **Add to PATH**).
-2. Download or clone this repo to any folder: `git clone https://github.com/YCL-Jeff/AudioMotion_TW.git`
-3. Double-click `start.bat`. On first run it installs `PyAudioWPatch` (the only dependency; the server itself uses the
-   standard library only).
-4. The console prints the address(es), e.g. `http://192.168.1.23:8765/`. Keep the window open.
-5. If Windows Firewall asks, allow **Private networks**.
-6. Play music as usual (Tidal / YouTube / any player). Nothing about your sound card or default device changes.
+### 一、電腦端(Windows)
+1. 安裝 Python 3.9+(安裝時勾選 **Add to PATH**)。
+2. 下載或 clone 本專案到任意資料夾:`git clone https://github.com/YCL-Jeff/AudioMotion_TW.git`
+3. 雙擊 `start.bat`。首次會自動安裝 `PyAudioWPatch`(唯一的套件,伺服器本身只用標準函式庫)。
+4. 視窗會印出網址,例如 `http://192.168.1.23:8765/`,請保持視窗開著。
+5. Windows 防火牆若詢問,請對「**私人網路**」允許。
+6. 照常播放音樂(Tidal / YouTube / 任何播放器)。不會更動音效卡或預設裝置。
 
-> Tip: `python server.py --fake` plays a synthetic test tone so you can check the phone setup without music.
+> 小技巧:`python server.py --fake` 會送出合成測試音,沒有音樂也能先測手機設定。
 
-### 2. On the phone
-1. Connect the phone to the **same Wi-Fi / LAN** as the PC (not mobile data; guest networks with "client isolation" block it).
-2. Open the printed address in the browser (Safari / Chrome), e.g. `http://192.168.1.23:8765/`, and tap **Start**
-   (a tap is required once so the browser may start its audio engine).
-3. Tap the screen to open the settings panel (the ⚙ icon appears and fades after 5 s). Pick a preset category, then a preset.
-4. Rotate to landscape for the best view.
+### 二、手機端
+1. 手機連上**與電腦相同的 Wi-Fi / 區網**(不是行動數據;訪客網路若開了「用戶端隔離」會連不上)。
+2. 用瀏覽器(Safari / Chrome)開啟視窗印出的網址,例如 `http://192.168.1.23:8765/`,點「**開始**」
+   (瀏覽器需要一次觸碰才允許啟動音訊引擎)。
+3. 點一下畫面叫出設定面板(⚙ 圖示出現後 5 秒淡出),先選預設分類再選預設。
+4. 轉成橫放效果最佳。
 
-<p align="center"><img src="docs/images/ios-start.jpg" alt="Start screen on iPhone" width="260"></p>
+<p align="center"><img src="docs/images/ios-start.jpg" alt="iPhone 開始畫面" width="260"></p>
 
-#### Make it feel like an app (recommended)
-**iPhone / iPad (Safari)**: open the page → tap the share / `…` menu → **Add to Home Screen** (加入主畫面). Launching
-from the new icon opens it full screen without the address bar.
+#### 讓它像 App 一樣使用(建議)
+**iPhone / iPad(Safari)**:開啟頁面 → 點分享 / `…` 選單 → **加入主畫面**。之後從主畫面圖示開啟就是全螢幕、沒有網址列。
 
-<p align="center"><img src="docs/images/ios-menu.jpg" alt="Safari menu with Add to Home Screen" width="360"></p>
+<p align="center"><img src="docs/images/ios-menu.jpg" alt="Safari 選單:加入主畫面" width="360"></p>
 
-**Android (Chrome)**: `⋮` menu → **Add to Home screen** / **Install app**. The panel's **Fullscreen** button also works.
+**Android(Chrome)**:`⋮` 選單 → **加到主畫面** / **安裝應用程式**。面板上的「全螢幕」按鈕也可使用。
 
-#### Keep the screen on
-Browsers do not allow Wake Lock on plain `http://` pages, so set it manually:
-- **iPhone**: Settings → Display & Brightness → **Auto-Lock → Never**; turn off Portrait Orientation Lock.
-- **Android**: Settings → Display → **Screen timeout** → longest; turn on Auto-rotate.
-Remember to restore the setting afterwards. A dim / OLED-black screen uses very little power.
+#### 保持螢幕不熄滅
+瀏覽器在一般 `http://` 頁面不允許 Wake Lock,請手動設定:
+- **iPhone**:設定 → 螢幕顯示與亮度 → **自動鎖定 → 永不**;並關閉「直向方向鎖定」。
+- **Android**:設定 → 顯示 → **螢幕逾時** 調到最長;開啟自動旋轉。
+用完記得改回來。畫面調暗、OLED 黑底非常省電。
 
-#### Tips
-- The phone's own speaker is **muted** by this page; the music keeps playing on the PC's speakers as usual.
-- Give the PC a fixed IP (router DHCP reservation) and bookmark / add the page to the Home Screen once.
-- When the phone screen locks or the page goes to the background it disconnects and the PC stops capturing; open the page again to resume.
+#### 小提醒
+- 手機端頁面是**靜音**的,音樂仍照常由電腦喇叭播放。
+- 建議在路由器替電腦設定固定 IP(DHCP 保留),並把網頁加入書籤或主畫面。
+- 手機鎖屏或頁面切到背景會自動斷線、電腦端停止擷取;重新打開頁面即可恢復。
 
-### Troubleshooting
-| Symptom | Fix |
+### 疑難排解
+| 狀況 | 處理 |
 |---|---|
-| Phone cannot open the page | Same Wi-Fi? Firewall allowed for Private networks? Try the other printed address; disable router "AP / client isolation". |
-| Port 8765 busy | The server auto-tries the next ports (up to +19); use the address it prints, or pass `--port`. |
-| Connected but spectrum is flat | Silence sends no data. If your player outputs to a non-default device, run `python server.py --list` then `--device KEYWORD`. |
-| Stutter / lag | Raise `LATENCY` in `web/index.html`; use 5 GHz Wi-Fi; lower FPS in Power tab. |
-| Saved presets not on the phone | Restart `start.bat` so the new server (with preset sync) is running. |
+| 手機打不開頁面 | 是否同一 Wi-Fi?防火牆是否允許私人網路?改試另一個印出的網址;關閉路由器的「AP / 用戶端隔離」。 |
+| 8765 埠被占用 | 伺服器會自動換下一個埠(最多 +19),用它印出的網址,或加 `--port`。 |
+| 已連線但頻譜是平的 | 無聲時不送資料。若播放器輸出到非預設裝置,先 `python server.py --list`,再用 `--device 關鍵字`。 |
+| 卡頓 / 延遲 | 調高 `web/index.html` 的 `LATENCY`;改用 5 GHz Wi-Fi;在「省電」分頁降低 FPS。 |
+| 離開網頁再回來會卡住 | 已修正:回前景會自動重新啟動音訊並重連;若 iOS 顯示「點一下畫面繼續」,點一下即可。仍卡住請重新整理頁面。 |
+| 儲存的預設沒出現在手機 | 重新執行 `start.bat`,確保跑的是支援預設同步的新版伺服器。 |
 
-### Command line
+### 命令列參數
 ```
-python server.py --list             list loopback devices
-python server.py --device KEYWORD   pick a device (default = system default output)
+python server.py --list            列出 loopback 裝置
+python server.py --device 關鍵字   指定裝置(預設=系統預設輸出)
 python server.py --port 9000
-python server.py --fake             synthetic test audio (no real capture)
+python server.py --fake            合成測試音(不擷取真實聲音)
 ```
 
-## Settings panel
-- Tap anywhere or the ⚙ icon (it fades out after 5 s). Portrait = bottom drawer, landscape = side panel, so the
-  spectrum stays visible while you tune.
-- Tabs: Presets / Channel layout / Look / Meter / Peaks & scale / Analysis / Power. Irrelevant options hide
-  automatically; double-tap a slider to reset it.
-- **Channel layouts**: combined, L/R blend overlay (mixed colors), L/R native overlay, side by side, top/bottom.
-  The blend overlay runs two analyzers (one per channel) composited with CSS blend modes (screen / lighten / add /
-  difference), so both channels stay distinguishable even in LED mode.
+## 設定面板
+- 點畫面任一處或左上角 ⚙ 開啟;直放為底部抽屜,橫放為右側欄(頻譜維持可見,邊調邊看)。
+- 分頁:預設 / 聲道版面 / 外觀 / 峰值刻度 / 分析 / 省電。不相關的選項會自動隱藏;滑桿連點兩下回預設值。
+- **聲道版面**:合併、左右疊圖(混色)、左右疊圖(原生)、左右並排、上下分割。「疊圖(混色)」左右各用一個頻譜、以混色疊合(濾色/變亮/相加/差異),LED 模式也看得出兩聲道。
+- **自訂預設**:在「預設」分頁輸入名稱儲存(同名覆蓋),可覆蓋、改名、刪除。預設存在手機瀏覽器並同步到電腦端 `presets.json`,換手機或清除瀏覽器資料也會還原。
 
-## Presets
-- The top of the **Presets** tab has category buttons (LED / Spectrum / L-R / VU meter / Eco). Tap a category, then a
-  preset. Large touch targets, one-handed friendly. All LED presets use **true LEDs** (whole segments lit).
-- **The level meter is a global setting.** Applying a preset never changes the bottom meter's style, position or
-  size, so nothing jumps when you switch. Only presets in the *VU meter* category set the meter style
-  (bottom VU / bar) or enter fullscreen VU. Custom presets do not store meter settings either.
-- **Custom presets**: name and save the current settings (same name overwrites); overwrite / rename / delete. They
-  are stored in the phone browser and synced to `presets.json` next to `server.py`, so they survive switching phones
-  or clearing browser data. (Restart `start.bat` after updating the server so sync works.)
+## 全螢幕 VU 模式
+設定面板「電平表」分頁最上方的「畫面顯示」選「全螢幕類比 VU 錶頭」(或面板標題列的「頻譜 ⇄ VU」按鈕一鍵切換):整個畫面只顯示左右兩個長方形(3:2)VU 錶頭,橫放左右並排、直放上下疊,自動放到最大;頻譜分析會暫停以省電。可調面板色、背光、Headroom 校準、外框材質、指針速度、錶頭佔畫面比例。內建預設「全螢幕 VU 暖米白 / 琥珀 / 夜光」。
 
-## Fullscreen VU mode
-Choose "Fullscreen analog VU" under Meter → Display (or use the **Spectrum ⇄ VU** button in the panel header): the whole
-screen shows two rectangular (3:2) VU meters, side by side in landscape and stacked in portrait, scaled as large as
-possible. Spectrum analysis is paused to save power. Adjustable: face color, backlight, Headroom, bezel finish,
-needle speed, meter size.
+## 電平表
+左右聲道各一個,位置可選下方 / 右側 / 左側(橫放手機建議右側;放右側時設定面板自動改靠左)。「電平表」分頁可切換兩種樣式:
 
-## Level meters
-Left and right channels, placed at the bottom / right / left (right is recommended for landscape phones; the panel
-then moves to the left side). Two styles:
+**條狀(預設)**:dBFS 峰值,純圖形、無數字。預設為細條、連續樣式、顏色跟隨主頻譜配色(也可選依電平綠黃紅或任一漸層);分段 LED、RMS、刻度線可開關;最細 8 px;可調最低刻度、峰值停留、回落速度。
 
-**Bar (default)**: dBFS peak, graphics only, no numbers. Thin, continuous, and the color follows the main spectrum
-gradient by default (or by level green-yellow-red, or any gradient). Optional LED segments, RMS and tick marks;
-as thin as 8 px; adjustable floor, peak hold and fall speed.
+**類比 VU 指針錶頭**:左右各一個長方形錶頭(原創復古 Hi-Fi 擴大機風格,拉絲外框、紙面顆粒、背光、螺絲細節),標準 VU 刻度(-20…+3,振幅刻度,0 VU 約在 71% 處,紅區 0~+3),指針為二階系統,標準約 300 ms 到位並有輕微過衝。
+- 可調錶頭大小(60–260 px)、面板色(暖米白 / 琥珀 / 冷白 / 夜光藍)、背光亮度、指針反應速度。
+- 「Headroom 校準」4–26 dB(預設 18):0 VU = -N dBFS;數字越小指針越容易頂進紅區。
+- 「刻度顯示」可切 VU 刻度或 dBFS 刻度(依 Headroom 換算),內側小字永遠對照 dBFS。
+- 右上過載燈:峰值 ≥ -0.009 dBFS 亮起,保持 1 秒後 3 秒淡出。
+- 大小:全螢幕用「錶頭佔畫面比例」;非全螢幕用「錶頭高度」(S/M/L 約 80/120/180)。
+- 「疊在頻譜上」開啟時不縮小頻譜,適合橫放手機畫面較矮的情況。
+- 右上角小燈在接近滿格(削波)時亮紅燈。
+- 面板為原創繪製(程式即時繪製,無圖檔、無品牌標誌)。
 
-**Analog VU needle meters**: two rectangular meters in an original retro hi-fi amplifier design (brushed bezel,
-paper grain, backlight glow, screws), standard VU scale (-20…+3, amplitude scale, 0 VU at about 71 %, red zone 0…+3).
-The needle is a second-order system: about 300 ms to settle with slight overshoot.
-- Size (60–260 px), face color (warm cream / amber / cool white / night blue), backlight, needle speed.
-- **Headroom 4–26 dB** (default 18): 0 VU = -N dBFS. Lower numbers push the needle into the red sooner.
-- **Scale mode**: VU scale or dBFS scale (converted from Headroom); the inner small numbers always show dBFS.
-- **Overload LED** (top right): lights at peaks ≥ -0.009 dBFS, holds 1 s, then fades over 3 s.
-- Sizing: fullscreen uses "meter share of screen"; otherwise "meter height".
-- "Overlay on spectrum" keeps the spectrum full size, useful for short landscape screens.
-- Everything is drawn in code at runtime: no image files, no brand marks.
+## 注意
+- 手機只能用 `http://區網IP`,此情境下 Wake Lock 不可用(非安全環境),請自行把手機螢幕逾時調長,或用全螢幕。
+- 延遲約 100 ms,可在 `web/index.html` 調 `LATENCY`(Wi-Fi 抖動大就調高)。
+- 無聲時 WASAPI loopback 不送資料,頻譜自然歸零,屬正常。
+- audioMotion-analyzer 為 AGPL-3.0,原檔放在 `web/vendor/`(含授權檔)。
 
-## Notes
-- Phones must use `http://<LAN IP>`; Wake Lock is unavailable on insecure origins, so raise the phone's screen
-  timeout or use fullscreen.
-- Latency is about 100 ms. Tune `LATENCY` in `web/index.html` (raise it if your Wi-Fi jitters).
-- WASAPI loopback sends nothing during silence, so the spectrum falling to zero is normal.
-- Windows only for capture (WASAPI loopback via PyAudioWPatch). The viewer runs in any modern phone browser.
+## 預設
+- 「預設」分頁最上方是分類按鈕(LED / 頻譜 / 左右聲道 / VU 錶頭 / 省電),點分類再點預設即可套用,適合手機單手操作。所有 LED 預設皆為「真實 LED(整格亮)」。
+- **電平表為全域設定**:套用任何預設都不會改變底部電平表的樣式、位置與大小,切換時畫面不會跳動。只有「VU 錶頭」分類的預設會明確指定樣式(底部 VU / 條狀表)或全螢幕 VU。自訂預設同樣不包含電平表設定。
+- 自訂預設與儲存欄位在內建預設下方。
 
-## License
-AGPL-3.0, see `LICENSE`. The bundled [audioMotion-analyzer](https://github.com/hvianna/audioMotion-analyzer)
-(AGPL-3.0, © Henrique Avila Vianna) lives in `web/vendor/` with its license file; the VU meter technique was
-informed by [vu-meter-react](https://github.com/Jun-Murakami/vu-meter-react) (MIT) but no code was copied.
+## 資安與隱私
+- 伺服器**沒有帳號密碼**,綁定 `0.0.0.0`,同一區網內任何裝置只要知道網址就能看到你正在播放的聲音頻譜(不含檔名等資訊,但等同旁聽音量/節奏)。**請只在家用或可信任的區網使用,不要把埠號對外開放(不要做 port forwarding)**。
+- 若要限制只有本機或指定網卡可連,啟動時加 `--host 127.0.0.1` 或你的區網 IP。
+- 手機端只收音訊資料,不會上傳任何東西到網際網路;專案不含追蹤、分析或外部請求(唯一外部資源是 GitHub 上的原始碼,執行時所有檔案都在本機)。
+- `/api/presets` 只接受 ≤256 KB 的 JSON,寫入 `presets.json`;區網內他人理論上可覆寫你的預設,屬於同一信任範圍的風險。
+- 靜態檔案伺服器有路徑穿越防護,只提供 `web/` 內的檔案。
+- `.gitignore` 已排除 `presets.json`;上傳前請確認 commit 作者信箱不是你不想公開的信箱(`git config user.email`)。
+
+## 授權
+本專案以 AGPL-3.0 釋出(內含 AGPL-3.0 的 audioMotion-analyzer),見 `LICENSE`。

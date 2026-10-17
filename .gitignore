@@ -2,3 +2,4 @@ __pycache__/
 *.pyc
 presets.json
 .venv/
+_to_delete/
