@@ -84,7 +84,7 @@ Remember to restore the setting afterwards. A dim / OLED-black screen uses very 
 | Port 8765 busy | The server auto-tries the next ports (up to +19); use the address it prints, or pass `--port`. |
 | Connected but spectrum is flat | Silence sends no data. If your player outputs to a non-default device, run `python server.py --list` then `--device KEYWORD`. |
 | Stutter / lag | Raise `LATENCY` in `web/index.html`; use 5 GHz Wi-Fi; lower FPS in Power tab. |
-| Page freezes after leaving and returning | Fixed: the page now restarts audio and reconnects when it returns to the foreground; if iOS shows "Tap to continue", tap once. Still stuck → reload the page. |
+| Page freezes after leaving and returning | iOS often leaves the audio engine in a fake "running" state after backgrounding. After being away for more than 1.5 s the page now reloads itself and reattaches to the stream; just tap once when "Tap the screen to continue" appears. |
 | Saved presets not on the phone | Restart `start.bat` so the new server (with preset sync) is running. |
 
 ### Command line

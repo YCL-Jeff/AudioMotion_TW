@@ -19,9 +19,9 @@
   #start { position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; background: #000; z-index: 9; }
   #start button { font: inherit; font-size: 18px; padding: 14px 34px; border-radius: 999px; border: 1px solid #555; background: #111; color: #fff; }
   #msg { opacity: .65; text-align: center; padding: 0 24px; }
-  #dot { position: fixed; top: calc(8px + env(safe-area-inset-top)); right: calc(10px + var(--meter-r, 0px)); width: 8px; height: 8px; border-radius: 50%; background: #c33; z-index: 3; opacity: .8; pointer-events: none; }
+  #dot { position: fixed; top: calc(8px + env(safe-area-inset-top)); right: calc(52px + var(--meter-r, 0px)); width: 8px; height: 8px; border-radius: 50%; background: #c33; z-index: 3; opacity: .8; pointer-events: none; }
   #dot.ok { background: #3c6; }
-  #gear { position: fixed; top: calc(4px + env(safe-area-inset-top)); left: 6px; z-index: 3; width: 40px; height: 40px; border: 0; background: none; color: #fff; font-size: 22px; opacity: 0; pointer-events: none; transition: opacity .5s; }
+  #gear { position: fixed; top: calc(4px + env(safe-area-inset-top)); right: calc(6px + var(--meter-r, 0px)); z-index: 3; width: 40px; height: 40px; border: 0; background: none; color: #fff; font-size: 22px; opacity: 0; pointer-events: none; transition: opacity .5s; }
   #gear.on { opacity: .5; pointer-events: auto; }
 
   /* 面板:直放=底部抽屜,橫放=右側欄(頻譜維持可見,邊調邊看) */
@@ -791,10 +791,22 @@ function dropConn() {
   fmt = null; $('dot').classList.remove('ok');
 }
 
-// 回到前景:音訊引擎在 iOS 可能被系統中斷(interrupted/suspended),需重新 resume;連線與時間軸全部重建
+// 回到前景:iOS 在背景/鎖屏後常讓音訊引擎或網頁處於「假運轉」狀態(狀態是 running,但時鐘不走、不再出聲),
+// 只能靠重新載入頁面復原。所以離開超過 1.5 秒就自動重新載入並直接接回串流,只需點一下畫面即可恢復音訊。
 const showTap = on => $('tap').classList.toggle('on', !!on);
+let hiddenAt = 0;
+function reloadSoon(why) {
+  try {
+    const last = +sessionStorage.getItem('rlAt') || 0;
+    if (Date.now() - last < 15000) return false;   // 防止無限重載
+    sessionStorage.setItem('rlAt', String(Date.now())); sessionStorage.setItem('resume', '1');
+  } catch {}
+  console.log('reload:', why); location.reload(); return true;
+}
 async function wake() {
   if (!started || document.hidden) return;
+  if (hiddenAt && Date.now() - hiddenAt > 1500 && reloadSoon('resume after background')) return;
+  hiddenAt = 0;
   if (!isFull(cfg)) { am.toggleAnalyzer(true); am2 && am2.toggleAnalyzer(true); }
   nextT = 0; meter.q.length = 0; retry = 0;
   try { await Promise.race([ac.resume(), new Promise(r => setTimeout(r, 800))]); } catch {}
@@ -803,19 +815,24 @@ async function wake() {
 }
 function sleep() {   // 背景/鎖屏:關掉繪圖與連線以省電
   if (!started) return;
+  if (!hiddenAt) hiddenAt = Date.now();
   am.toggleAnalyzer(false); am2 && am2.toggleAnalyzer(false); dropConn();
 }
 document.addEventListener('visibilitychange', () => document.hidden ? sleep() : wake());
-window.addEventListener('pageshow', e => { if (e.persisted) wake(); });   // iOS 返回頁面(bfcache)
+window.addEventListener('pageshow', e => { if (e.persisted && started) { hiddenAt = hiddenAt || 1; wake(); } });   // bfcache 還原
 window.addEventListener('pagehide', sleep);
-window.addEventListener('focus', () => { if (started && !document.hidden && (!ws || ws.readyState > 1)) wake(); });
 document.addEventListener('pointerdown', () => { if (started && ac.state !== 'running') ac.resume().then(() => showTap(ac.state !== 'running')).catch(() => {}); }, true);
-// 看門狗:前景時若連線已斷且沒有排程重連,或音訊引擎停了,自動恢復
+// 看門狗:前景時連線斷了就重連;音訊時鐘停止前進(假運轉)就重新載入
+let lastCT = -1, stuck = 0;
 setInterval(() => {
-  if (!started || document.hidden) return;
+  if (!started || document.hidden) { stuck = 0; return; }
   if ((!ws || ws.readyState > 1) && !connT) connect();
-  if (ac.state !== 'running') { ac.resume().catch(() => {}); showTap(true); } else showTap(false);
-}, 3000);
+  if (ac.state !== 'running') { ac.resume().catch(() => {}); showTap(true); stuck = 0; lastCT = -1; return; }
+  showTap(false);
+  if (ac.currentTime === lastCT) { if (++stuck >= 2) reloadSoon('audio clock stalled'); } else stuck = 0;
+  lastCT = ac.currentTime;
+}, 2500);
+
 async function keepAwake() {
   if (!cfg.keepAwake) return;
   try { if ('wakeLock' in navigator) wakeLock = await navigator.wakeLock.request('screen'); } catch {}
@@ -965,12 +982,14 @@ function buildTabs() {
 // ======================================================================
 // 開始 / 面板開關
 // ======================================================================
-$('go').onclick = async () => {
+async function startApp(auto) {
   initAudio();
-  await ac.resume();
+  if (auto) ac.resume().catch(() => {}); else await ac.resume();   // 自動接回時沒有手勢,resume 會等到使用者點一下
   $('start').remove();
   started = true; connect(); keepAwake();
-};
+  if (auto) setTimeout(() => showTap(ac.state !== 'running'), 400);
+}
+$('go').onclick = () => startApp(false);
 const togglePanel = f => { const on = $('panel').classList.toggle('show', f); if (on) pullPresets(); };
 $('stage').addEventListener('click', () => togglePanel());
 $('stage2').addEventListener('click', () => togglePanel());
@@ -994,6 +1013,7 @@ $('fs').onclick = () => {
   (document.fullscreenElement ? document.exitFullscreen() : (el.requestFullscreen || el.webkitRequestFullscreen)?.call(el));
 };
 buildTabs();
+try { if (sessionStorage.getItem('resume') === '1') { sessionStorage.removeItem('resume'); startApp(true); } } catch {}
 pullPresets();
 </script>
 </body>
