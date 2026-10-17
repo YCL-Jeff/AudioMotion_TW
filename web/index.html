@@ -14,7 +14,8 @@
   html, body { margin: 0; height: 100%; background: #000; overflow: hidden; }
   body { font: 14px/1.4 system-ui, -apple-system, "Noto Sans TC", sans-serif; color: #e4e4e6; -webkit-tap-highlight-color: transparent; }
   .stage { position: fixed; left: var(--meter-l, 0px); right: var(--meter-r, 0px); top: 0; bottom: var(--meter-b, 0px); }
-  #meter { position: fixed; display: none; z-index: 1; }
+  #stage, #stage2 { touch-action: none; }
+  #meter { position: fixed; display: none; z-index: 1; touch-action: none; -webkit-touch-callout: none; user-select: none; -webkit-user-select: none; }
   #stage2 { pointer-events: none; }
   #start { position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; background: #000; z-index: 9; }
   #start button { font: inherit; font-size: 18px; padding: 14px 34px; border-radius: 999px; border: 1px solid #555; background: #111; color: #fff; }
@@ -31,6 +32,15 @@
   @media (orientation: landscape) { #panel { top: 0; right: 0; bottom: 0; width: min(390px, 46vw); border-right: 0; border-top: 0; border-bottom: 0; padding-right: env(safe-area-inset-right); } }
   /* 電平表放在右側時,設定面板改靠左,避免蓋住它 */
   @media (orientation: landscape) { html[data-mpos="right"] #panel { left: 0; right: auto; border-left: 0; border-right: 1px solid var(--line); padding-right: 0; } }
+  /* 調整大小模式:長按電平表進入,顯示虛線外框 + 把手 + 按鈕;此時設定面板暫時收起,避免互相干擾 */
+  #rz { position: fixed; z-index: 8; display: none; box-sizing: border-box; border: 2px dashed var(--acc); background: rgba(52,199,89,.07); touch-action: none; -webkit-user-select: none; user-select: none; cursor: ew-resize; }
+  #rz.on { display: block; }
+  #rz .grip { position: absolute; background: var(--acc); border-radius: 6px; opacity: .9; }
+  #rz .grip.v { top: 50%; width: 8px; height: 64px; margin-top: -32px; } #rz .grip.h { left: 50%; height: 8px; width: 64px; margin-left: -32px; }
+  #rz .tools { position: absolute; left: 50%; top: 50%; transform: translate(-50%,-50%); display: flex; flex-direction: column; align-items: center; gap: 8px; text-align: center; font-size: 13px; color: #fff; text-shadow: 0 1px 3px #000; pointer-events: none; }
+  #rz .tools button { pointer-events: auto; min-height: 40px; padding: 6px 14px; }
+  #rz .tools .row2 { display: flex; gap: 8px; }
+  #rz .val { font-weight: 700; font-size: 16px; }
   #phead { display: flex; gap: 8px; align-items: center; padding: 10px 12px 6px; }
   #phead b { flex: 1; font-size: 15px; }
   #tabs { display: flex; gap: 6px; padding: 6px 12px 10px; min-height: 34px; overflow-x: auto; border-bottom: 1px solid var(--line); scrollbar-width: none; }
@@ -61,6 +71,7 @@
   .sw:checked { background: var(--acc); } .sw:checked::after { left: 21px; }
   #tap { position: fixed; inset: 0; z-index: 9; display: none; align-items: center; justify-content: center; background: rgba(0,0,0,.6); color: #fff; font-size: 18px; }
   #tap.on { display: flex; }
+  .glabel { margin: 10px 0 0; font-size: 12px; font-weight: 600; letter-spacing: .06em; color: var(--mut); }
   .chips { display: flex; flex-wrap: wrap; gap: 8px; padding: 6px 0; }
   .chip { padding: 8px 14px; border-radius: 10px; }
   .chips.big { display: grid; grid-template-columns: repeat(auto-fill, minmax(112px, 1fr)); }
@@ -212,10 +223,11 @@ const SCHEMA = {
     H('類比 VU 錶頭', vuShown),
     R('vuSize', '錶頭高度 px', 60, 420, 2, { w: c => !isFull(c) && vuShown(c), hint: '下方橫排時每個錶頭的高度(手機直立時兩個會上下疊放)。放在右/左側時依螢幕自動決定:橫放自動縮小、直放可較大,不受此設定限制' }),
     R('vuScale', '錶頭佔畫面比例 %', 50, 100, 1, { w: isFull, hint: '全螢幕時錶頭自動放到最大,這裡可再縮小留邊' }),
-    S('vuFace', '面板色', [['cream', '暖米白(背光)'], ['amber', '琥珀'], ['night', '夜光藍'], ['paperwhite', '白底 黑紅字'], ['blackwhite', '黑底 白紅字'], ['iceblue', '冰藍背光'], ['blackorange', '橘紅 黑底']], false, { w: vuShown }),
+    S('vuFace', '面板色', [['cream', '暖米白(背光)'], ['amber', '琥珀'], ['paperwhite', '白底 黑紅字'], ['iceblue', '冰藍背光'], ['night', '夜光藍'], ['blackwhite', '黑底 白紅字'], ['blackorange', '橘紅 黑底']], false, { w: vuShown, groups: [['淺色面板', ['cream', 'amber', 'paperwhite', 'iceblue']], ['黑底面板', ['night', 'blackwhite', 'blackorange']]] }),
     S('vuShape', '刻度形狀', [['arc', '圓弧(經典)'], ['flat', '平直(Sony / audio-ui 風)']], false, { w: vuShown, hint: '平直:刻度排成水平直線,指針從下方轉軸掃過;建議寬高比 2.2 以上' }),
     S('vuCount', '錶頭數量', [['auto', '自動(單頻譜 1 個)'], ['1', '1 個(L+R 合併)'], ['2', '2 個(左右)']], false, { w: vuShown }),
-    R('vuSideW', '橫放時電平表寬度 %', 10, 45, 1, { w: c => !isFull(c) && vuShown(c), hint: '橫放(電平表在右/左側)時,佔整個畫面寬度的百分比;錶頭會跟著放大縮小,頻譜取得其餘寬度' }),
+    { k: '_fit', l: '自動適配大小', t: 'button', w: c => vuShown(c) || c.meterOn, hint: '依目前螢幕與方向算出合適的寬度 / 高度。也可以直接長按電平表進入「調整大小」模式:拖曳虛線框即可,按「完成」離開' },
+    R('vuSideW', '橫放時電平表寬度 %', 10, 50, 1, { w: c => !isFull(c) && vuShown(c), hint: '橫放(電平表在右/左側)時,佔整個畫面寬度的百分比;錶頭會跟著放大縮小,頻譜取得其餘寬度' }),
     R('vuAspect', '錶頭寬高比', 1.3, 2.6, 0.1, { w: vuShown, hint: '越大越扁長(1.8 為預設)' }),
     B('vuPair', '雙表共用一個外框', { w: vuShown, hint: '左右兩個錶頭嵌在同一塊面板上;直排時自動分開' }),
     R('vuLight', '背光亮度', 0.4, 1, 0.05, { w: vuShown }),
@@ -436,10 +448,12 @@ function vuBottomH() {
   const gap = cfg.vuPair && n === 2 ? 0 : Math.round(cfg.vuSize * 0.06);
   return Math.min(cfg.vuSize, Math.floor((W - gap * (n - 1) - 8) / n / A));
 }
-// 側邊(直排)VU:錶頭依螢幕高度自動放到最大,欄寬剛好等於錶頭寬,不留空白(橫放縮小至寬度 25%、直放最多 42%)
+// 側邊(直排)VU:錶頭依螢幕高度自動放到最大,欄寬剛好等於錶頭寬,不留空白(橫放縮小至寬度 25%、最多 50%)
 function vuSideS() {
-  const A = vuA(), n = monoM() ? 1 : 2, gap = n === 2 ? 6 : 0;
-  return Math.max(30, Math.min(Math.floor((window.innerHeight - gap - 8) / n), Math.floor(window.innerWidth * (window.innerWidth > window.innerHeight ? (cfg.vuSideW || 25) / 100 : 0.42) / A)));   // 橫放時自動縮小(最多佔寬度 25%);直放可以較大
+  const A0 = vuA0(), n = monoM() ? 1 : 2, gap = n === 2 ? 6 : 0, W = window.innerWidth, H = window.innerHeight;
+  const Sh = Math.max(30, Math.floor((H - gap - 8) / n)), wCap = W * (W > H ? (cfg.vuSideW || 25) / 100 : 0.5);
+  const A = Math.min(2.6, Math.max(A0, wCap / Sh)); sideA = A;   // 欄寬較大時拉寬錶頭而非留白
+  return Math.max(30, Math.min(Sh, Math.floor(wCap / A)));
 }
 // 讀取安全區域(iPhone 瀏海 / 圓角 / Home 條)的實際像素,側邊電平表要閃開
 function insetPx(side) {
@@ -449,6 +463,7 @@ function insetPx(side) {
   } catch { return 0; }
 }
 function applyMeter() {
+  sideA = 0;
   meter.inL = insetPx('left'); meter.inR = insetPx('right');
   if (!meter.cx) return;
   const root = document.documentElement, st = root.style, cs = meter.cv.style, pos = mpos();
@@ -606,7 +621,9 @@ function drawBar(t) {
 // 類比 VU 錶頭(原創設計:深色玻璃窗 + 發光刻度 / 背光紙面;標準 VU 刻度 -20…+3)
 //   面板(含刻度、字、玻璃、暗角)只畫一次並快取,每幀只重畫指針與過載燈,省電
 // ======================================================================
-const vuA = () => Math.min(2.6, Math.max(1.3, +cfg.vuAspect || 1.8));   // 單一錶頭(含邊框)的寬高比
+const vuA0 = () => Math.min(2.6, Math.max(1.3, +cfg.vuAspect || 1.8));
+let sideA = 0;   // 側邊直排時:欄寬超過錶頭高度能容納的寬度,就把錶頭拉寬(最多 2.6)以填滿
+const vuA = () => sideA || vuA0();   // 單一錶頭(含邊框)的寬高比
 const VU = { x: [0, 0], v: [0, 0], win: [null, null], house: null, key: '' };
 const VU_MAJOR = [-20, -10, -7, -5, -3, -2, -1, 0, 1, 2, 3], VU_MINOR = [-15, -9, -8, -6, -4], VU_FINE = [-2.5, -1.5, -0.5, 0.5, 1.5, 2.5];
 const VU_SWEEP = 38;                                                    // 指針單側掃角(度)
@@ -965,7 +982,9 @@ function control(it) {
   if (it.hint) { const h = document.createElement('span'); h.className = 'hint'; h.textContent = it.hint; nm.append(h); }
   row.append(nm);
   const v = cfg[it.k];
-  if (it.t === 'check') {
+  if (it.t === 'button') {
+    const b = document.createElement('button'); b.type = 'button'; b.textContent = '套用'; b.className = 'primary'; b.onclick = () => toast(vuAutoFit()); row.append(b);
+  } else if (it.t === 'check') {
     const el = Object.assign(document.createElement('input'), { type: 'checkbox', className: 'sw', checked: !!v });
     el.onchange = () => set(it.k, el.checked); row.append(el);
   } else if (it.t === 'range') {
@@ -988,7 +1007,15 @@ function control(it) {
       b.onclick = () => { set(it.k, it.num ? +ov : ov); btns.forEach(x => x.classList.toggle('on', x === b)); if (it.k === 'vuHead') renderTab(); };
       b.classList.toggle('on', ov === String(v)); seg.append(b); return b;
     });
-    row.append(seg);
+    if (it.groups) {   // 分組顯示(例如淺色 / 黑底)
+      const wrap = document.createElement('div');
+      for (const [gl, keys] of it.groups) {
+        const lab = document.createElement('div'); lab.className = 'glabel'; lab.textContent = gl; const sg = document.createElement('div'); sg.className = 'seg';
+        for (const b of btns) if (keys.includes(b.dataset.v)) sg.append(b); wrap.append(lab, sg);
+      }
+      for (const b of btns) if (!b.parentNode || b.parentNode === seg) wrap.append(b);   // 不在任何群組內的(自訂值)
+      row.append(wrap);
+    } else row.append(seg);
   }
   rows.push({ el: row, it });
   return row;
@@ -1015,9 +1042,19 @@ function renderPresets(body) {
     b.onclick = () => { store.set('pcat', c.id); renderTab(); }; ct.append(b);
   }
   body.append(ct);
-  const chips = document.createElement('div'); chips.className = 'chips big';
-  for (const [name, p] of Object.entries(BUILTIN_CATS.find(c => c.id === cat).items)) chips.append(mkChip(name, p));
-  body.append(chips);
+  const items = Object.entries(BUILTIN_CATS.find(c => c.id === cat).items);
+  if (cat === 'vu' || cat === 'vub') {   // 依面板底色分組:淺色 / 黑底 放在一起
+    const grp = [['淺色面板', e => e[1].vuFace && !(VU_FACES[e[1].vuFace] || {}).dark], ['黑底面板', e => e[1].vuFace && (VU_FACES[e[1].vuFace] || {}).dark], ['其他', e => !e[1].vuFace]];
+    for (const [label, f] of grp) {
+      const list = items.filter(f); if (!list.length) continue;
+      const gl = document.createElement('div'); gl.className = 'glabel'; gl.textContent = label; body.append(gl);
+      const chips = document.createElement('div'); chips.className = 'chips big'; for (const [name, p] of list) chips.append(mkChip(name, p)); body.append(chips);
+    }
+  } else {
+    const chips = document.createElement('div'); chips.className = 'chips big';
+    for (const [name, p] of items) chips.append(mkChip(name, p));
+    body.append(chips);
+  }
   // --- 我的預設 ---
   const h1 = document.createElement('h4'); h1.textContent = '儲存目前設定'; body.append(h1);
   const save = document.createElement('div'); save.className = 'save';
@@ -1035,12 +1072,12 @@ function renderPresets(body) {
 
   const h2 = document.createElement('h4'); h2.textContent = '我的預設'; body.append(h2);
   const names = Object.keys(userPresets);
-  if (!names.length) { const n = document.createElement('div'); n.className = 'note'; n.textContent = '還沒有自訂預設。調好畫面後在上方取名儲存;同名會覆蓋。預設也會存到電腦端,換手機也能用。'; body.append(n); }
+  if (!names.length) { const n = document.createElement('div'); n.className = 'note'; n.textContent = '還沒有自訂預設。調好畫面後在上方取名儲存;同名會覆蓋。儲存後可在畫面上左右滑動,循環切換自訂預設。預設也會存到電腦端,換手機也能用。'; body.append(n); }
   for (const name of names) {
     const r = document.createElement('div'); r.className = 'urow';
     const nm = document.createElement('div'); nm.className = 'nm'; nm.textContent = name;
-    nm.onclick = () => { setAll(userPresets[name]); toast(`已套用「${name}」`); };
-    presetBtns.push({ el: nm, p: userPresets[name] });
+    nm.onclick = () => { setAll(userPresets[name], true); toast(`已套用「${name}」`); };   // 自訂預設連電平表 / VU 設定一起還原
+    presetBtns.push({ el: nm, p: userPresets[name], own: true });
     const ov = document.createElement('button'); ov.textContent = '覆蓋';
     ov.title = '用目前設定覆蓋這個預設';
     ov.onclick = () => { userPresets[name] = { ...cfg }; pushPresets(); toast(`已更新「${name}」`); refreshPresetMarks(); };
@@ -1104,10 +1141,80 @@ async function startApp(auto) {
   if (auto) setTimeout(() => showTap(ac.state !== 'running'), 400);
 }
 $('go').onclick = () => startApp(false);
-const togglePanel = f => { const on = $('panel').classList.toggle('show', f); if (on) pullPresets(); };
-$('stage').addEventListener('click', () => togglePanel());
-$('stage2').addEventListener('click', () => togglePanel());
-$('meter').addEventListener('click', () => togglePanel());
+const togglePanel = f => { if (rzOn) { rzExit(); return; } const on = $('panel').classList.toggle('show', f); if (on) pullPresets(); };
+$('stage').addEventListener('click', () => { if (Date.now() < suppUntil) return; togglePanel(); });
+$('stage2').addEventListener('click', () => { if (Date.now() < suppUntil) return; togglePanel(); });
+// ---- 長按電平表:拖曳調整大小;長按後不動直接放開 = 自動適配 ----
+let suppUntil = 0;
+function vuAutoFit() {   // 依螢幕尺寸算出合適的寬度 / 高度
+  const W = window.innerWidth, H = window.innerHeight, A = vuA0(), n = monoM() ? 1 : 2, pos = mpos();
+  if (isFull(cfg)) { set('vuScale', DEFAULTS.vuScale); return `全螢幕大小 ${DEFAULTS.vuScale}%`; }
+  if (!vuShown(cfg)) { set('meterH', DEFAULTS.meterH); return '電平表已重設為預設大小'; }
+  if (pos === 'bottom') {
+    const stacked = n === 2 && H > W, S = stacked ? Math.min(Math.floor((W - 8) / A), Math.floor(H * 0.22)) : Math.min(Math.floor((W - 8) / n / A), Math.floor(H * 0.3));
+    const v = Math.max(60, Math.min(420, S)); set('vuSize', v); return `錶頭高度 ${v}px(自動適配)`;
+  }
+  const S = Math.floor((H - (n === 2 ? 6 : 0) - 8) / n), pct = Math.max(10, Math.min(50, Math.round(S * A / W * 100)));
+  set('vuSideW', pct); return `電平表寬度 ${pct}%(自動適配)`;
+}
+// ---- 調整大小模式 ----
+let rzOn = false, rzExit = () => {};
+(() => {
+  const el = $('meter'), rz = document.createElement('div'); rz.id = 'rz';
+  rz.innerHTML = '<div class="grip"></div><div class="tools"><div class="val"></div><div class="hint2">拖曳調整大小</div><div class="row2"><button type="button" id="rzfit">自動適配</button><button type="button" class="primary" id="rzok">完成</button></div></div>';
+  document.body.append(rz);
+  const grip = rz.querySelector('.grip'), val = rz.querySelector('.val');
+  const place = () => {
+    const r = el.getBoundingClientRect(); Object.assign(rz.style, { left: r.left + 'px', top: r.top + 'px', width: r.width + 'px', height: r.height + 'px' });
+    const pos = mpos(), side = !isFull(cfg) && (pos === 'left' || pos === 'right');
+    grip.className = 'grip ' + (side ? 'v' : 'h'); grip.style.cssText = side ? (pos === 'right' ? 'left:-5px' : 'right:-5px') : (isFull(cfg) ? 'top:-5px' : 'top:-5px');
+    rz.style.cursor = side ? 'ew-resize' : 'ns-resize';
+    val.textContent = isFull(cfg) ? `${cfg.vuScale}%` : !vuShown(cfg) ? `${cfg.meterH}px` : side ? `${cfg.vuSideW}%` : `${cfg.vuSize}px`;
+  };
+  let drag = null, raf = 0, pend = null;
+  const apply = () => {
+    raf = 0; if (!pend) return; const { x, y } = pend, W = window.innerWidth, H = window.innerHeight, pos = mpos();
+    if (isFull(cfg)) set('vuScale', Math.round(Math.max(40, Math.min(100, drag.s0 + (drag.y0 - y) / H * 100))));
+    else if (!vuShown(cfg)) set('meterH', Math.round(Math.max(8, Math.min(90, pos === 'bottom' ? H - y : pos === 'right' ? W - x : x))));
+    else if (pos === 'bottom') { const n = monoM() ? 1 : 2; set('vuSize', Math.round(Math.max(60, Math.min(420, (H - y) / (n === 2 && H > W ? 2.06 : 1))))); }
+    else set('vuSideW', Math.round(Math.max(10, Math.min(50, (pos === 'right' ? W - x : x) / W * 100))));
+    place();
+  };
+  rz.addEventListener('pointerdown', e => { if (e.target.closest('button')) return; drag = { y0: e.clientY, s0: cfg.vuScale }; try { rz.setPointerCapture(e.pointerId); } catch {} pend = { x: e.clientX, y: e.clientY }; if (!raf) raf = requestAnimationFrame(apply); });
+  rz.addEventListener('pointermove', e => { if (!drag) return; pend = { x: e.clientX, y: e.clientY }; if (!raf) raf = requestAnimationFrame(apply); });
+  const up = () => { drag = null; }; rz.addEventListener('pointerup', up); rz.addEventListener('pointercancel', up);
+  const enter = () => {
+    if (rzOn) return; rzOn = true; $('panel').classList.remove('show'); place(); rz.classList.add('on'); try { navigator.vibrate && navigator.vibrate(15); } catch {}
+  };
+  rzExit = () => { if (!rzOn) return; rzOn = false; rz.classList.remove('on'); suppUntil = Date.now() + 400; if ($('panel').classList.contains('show')) renderTab(); };
+  rz.querySelector('#rzok').onclick = () => rzExit();
+  rz.querySelector('#rzfit').onclick = () => { vuAutoFit(); place(); };
+  window.addEventListener('resize', () => { if (rzOn) setTimeout(place, 50); });
+  // 長按電平表 0.5 秒進入調整大小模式(期間手指移動超過 10px 視為捲動/誤觸,取消)
+  let lp = null;
+  el.addEventListener('pointerdown', e => { clearTimeout(lp && lp.t); lp = { x0: e.clientX, y0: e.clientY }; lp.t = setTimeout(() => { if (lp) { lp = null; suppUntil = Date.now() + 800; enter(); } }, 500); });
+  el.addEventListener('pointermove', e => { if (lp && Math.hypot(e.clientX - lp.x0, e.clientY - lp.y0) > 10) { clearTimeout(lp.t); lp = null; } });
+  const cancel = () => { if (lp) { clearTimeout(lp.t); lp = null; } };
+  el.addEventListener('pointerup', cancel); el.addEventListener('pointercancel', cancel);
+  el.addEventListener('contextmenu', e => e.preventDefault());
+})();
+$('meter').addEventListener('click', () => { if (Date.now() < suppUntil) return; togglePanel(); });
+// ---- 左右滑動:循環切換「我的預設」(往左滑 = 下一個,往右滑 = 上一個)----
+(() => {
+  let st = null;
+  document.addEventListener('pointerdown', e => {
+    st = (rzOn || $('panel').classList.contains('show') || e.target.closest('#panel,#rz,button,#gear,#tap,#go')) ? null : { x: e.clientX, y: e.clientY, t: performance.now(), id: e.pointerId };
+  }, true);
+  document.addEventListener('pointerup', e => {
+    if (!st || e.pointerId !== st.id) return; const dx = e.clientX - st.x, dy = e.clientY - st.y, dt = performance.now() - st.t; st = null;
+    if (Math.abs(dx) < 70 || Math.abs(dy) > Math.abs(dx) * 0.5 || dt > 700) return;
+    suppUntil = Date.now() + 450;
+    const names = Object.keys(userPresets); if (!names.length) { toast('還沒有自訂預設:設定 → 預設 → 儲存目前設定'); return; }
+    let i = names.indexOf(store.get('cust')); i = i < 0 ? (dx < 0 ? 0 : names.length - 1) : (i + (dx < 0 ? 1 : -1) + names.length) % names.length;
+    store.set('cust', names[i]); setAll(userPresets[names[i]], true); toast(`${i + 1}/${names.length}  ${names[i]}`);
+  }, true);
+  document.addEventListener('pointercancel', () => { st = null; }, true);
+})();
 $('gear').onclick = () => togglePanel();
 // ⚙ 按鈕:開始後與每次點擊畫面時顯示,5 秒後自動淡出(面板開啟時不顯示)
 let gearT;
