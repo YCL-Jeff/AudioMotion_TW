@@ -105,7 +105,7 @@
   <div id="msg">點一下開始(手機需要一次觸碰才能啟動音訊引擎)<br>開始後點畫面任一處或左上角 ⚙ 開啟設定</div>
 </div>
 <div id="panel">
-  <div id="phead"><b>顯示設定</b><small style="opacity:.45;font-size:10px;margin-left:6px">v1018-20</small><button id="viewbtn">頻譜 ⇄ VU</button><button id="fs">全螢幕</button><button id="close" class="primary">完成</button></div>
+  <div id="phead"><b>顯示設定</b><small style="opacity:.45;font-size:10px;margin-left:6px">v1018-24</small><button id="viewbtn">畫面 ⇄</button><button id="fs">全螢幕</button><button id="close" class="primary">完成</button></div>
   <div id="tabs"></div>
   <div id="pbody"></div>
 </div>
@@ -142,8 +142,9 @@ const R = (k, l, min, max, step, o = {}) => ({ k, l, t: 'range', min, max, step,
 const S = (k, l, opts, num, o = {}) => ({ k, l, t: 'select', opts, num, ...o });
 const H = (l, w) => ({ h: l, w });
 
-const isFull = c => c.viewMode === 'vu';                         // 全螢幕類比 VU
-const vuShown = c => isFull(c) || (c.meterOn && c.meterStyle === 'vu');
+const isFull = c => c.viewMode === 'vu' || c.viewMode === 'scope';   // 全螢幕(類比 VU 或向量示波器)
+const vuShown = c => c.viewMode === 'vu' || (!isFull(c) && c.meterOn && (c.meterStyle === 'vu' || c.meterStyle === 'scope'));   // 向量示波器的條帶沿用 VU 的大小 / 位置 / 面板色設定
+const scopeShown = c => c.viewMode === 'scope' || (!isFull(c) && c.meterOn && c.meterStyle === 'scope');
 const barShown = c => !isFull(c) && c.meterOn && c.meterStyle === 'bar';
 const isGraph = c => +c.mode === 10;
 const vuN = () => cfg.vuCount === '1' ? 1 : cfg.vuCount === '2' ? 2 : (cfg.channelLayout === 'single' && !isFull(cfg) ? 1 : 2);   // 錶頭數:自動=單頻譜 1 個,其餘 2 個
@@ -217,14 +218,16 @@ const SCHEMA = {
     B('linearAmplitude', '線性振幅'), R('linearBoost', '線性增益', 1, 5, 0.1, { w: c => c.linearAmplitude }),
   ],
   meter: [
-    S('viewMode', '畫面顯示', [['spectrum', '頻譜(可加電平表)'], ['vu', '全螢幕類比 VU 錶頭']], false, { hint: '全螢幕 VU:整個畫面只顯示左右兩個 VU 錶頭,頻譜分析會暫停以省電' }),
+    S('viewMode', '畫面顯示', [['spectrum', '頻譜(可加電平表 / 向量)'], ['vu', '全螢幕類比 VU 錶頭'], ['scope', '全螢幕 向量示波器']], false, { hint: '全螢幕:整個畫面只顯示 VU 或向量示波器,頻譜分析會暫停以省電。頻譜畫面下方還能再加電平表(條狀 / VU / 向量)' }),
     B('meterOn', '頻譜畫面加顯示電平表', { w: c => !isFull(c), hint: '左右聲道各一個,以峰值(條狀)或平均(VU 指針)顯示' }),
-    S('meterStyle', '樣式', [['bar', '條狀(dBFS 峰值)'], ['vu', '類比 VU 指針錶頭']], false, { w: c => !isFull(c) && c.meterOn }),
+    S('meterStyle', '樣式', [['bar', '條狀(dBFS 峰值)'], ['vu', '類比 VU 指針錶頭'], ['scope', '向量示波器(相位 / 結像)']], false, { w: c => !isFull(c) && c.meterOn }),
+    S('scopeGain', '示波器增益', [['auto', '自動放大'], ['fixed', '固定(0 dBFS 滿幅)']], false, { w: scopeShown, hint: '自動:音樂平均音量低時自動放大圖形;固定:可比較不同曲目的實際大小' }),
+    S('scopeTrail', '示波器殘影', [['short', '短'], ['mid', '中'], ['long', '長']], false, { w: scopeShown }),
     S('meterPos', '位置', [['auto', '自動(直放下方、橫放右側)'], ['bottom', '下方(橫排)'], ['right', '右側(直排)'], ['left', '左側(直排)']], false, { w: c => !isFull(c) && c.meterOn, hint: '橫放手機可放右側;直條時 L 在左/上、R 在右/下' }),
     H('類比 VU 錶頭', vuShown),
     R('vuSize', '錶頭高度 px', 60, 420, 2, { w: c => !isFull(c) && vuShown(c), hint: '下方橫排時每個錶頭的高度(手機直立時兩個會上下疊放)。放在右/左側時依螢幕自動決定:橫放自動縮小、直放可較大,不受此設定限制' }),
     R('vuScale', '錶頭佔畫面比例 %', 50, 100, 1, { w: isFull, hint: '全螢幕時錶頭自動放到最大,這裡可再縮小留邊' }),
-    S('vuFace', '面板色', [['cream', '暖米白(背光)'], ['amber', '琥珀'], ['paperwhite', '白底 黑紅字'], ['iceblue', '冰藍背光'], ['night', '夜光藍'], ['blackwhite', '黑底 白紅字'], ['blackorange', '橘紅 黑底']], false, { w: vuShown, groups: [['淺色面板', ['cream', 'amber', 'paperwhite', 'iceblue']], ['黑底面板', ['night', 'blackwhite', 'blackorange']]] }),
+    S('vuFace', '面板色', [['cream', '暖米白(背光)'], ['amber', '琥珀'], ['paperwhite', '白底 黑紅字'], ['iceblue', '冰藍背光'], ['night', '夜光藍'], ['blackwhite', '黑底 白紅字'], ['blackmono', '黑底 純白線條'], ['blackorange', '橘紅 黑底']], false, { w: vuShown, groups: [['淺色面板', ['cream', 'amber', 'paperwhite', 'iceblue']], ['黑底面板', ['night', 'blackwhite', 'blackmono', 'blackorange']]] }),
     S('vuShape', '刻度形狀', [['arc', '圓弧(經典)'], ['flat', '平直(Sony / audio-ui 風)']], false, { w: vuShown, hint: '平直:刻度排成水平直線,指針從下方轉軸掃過;建議寬高比 2.2 以上' }),
     S('vuCount', '錶頭數量', [['auto', '自動(單頻譜 1 個)'], ['1', '1 個(L+R 合併)'], ['2', '2 個(左右)']], false, { w: vuShown }),
     { k: '_fit', l: '自動適配大小', t: 'button', w: c => vuShown(c) || c.meterOn, hint: '依目前螢幕與方向算出合適的寬度 / 高度。也可以直接長按電平表進入「調整大小」模式:拖曳虛線框即可,按「完成」離開' },
@@ -271,9 +274,9 @@ const DEFAULTS = {
   maxFPS: 0, loRes: false, keepAwake: true,
   meterOn: true, meterMin: -60, meterHold: 1200, meterFall: 24, meterSeg: false, meterRms: false, meterH: 24,
   meterPos: 'auto', meterColor: 'sync', meterTicks: true,
-  viewMode: 'spectrum', vuScale: 94, meterStyle: 'bar', vuSize: 120, vuFace: 'cream', vuLight: 1, vuHead: 18, vuScaleMode: 'vu', vuBezel: 'none', vuAspect: 1.8, vuCount: 'auto', vuSideW: 25, vuShape: 'arc', vuPair: true, vuSpeed: 1, vuOverlay: false, vuOverThr: -1, vuOverN: 3, vuDiag: false, vuOverMode: 'auto',
+  viewMode: 'spectrum', vuScale: 94, meterStyle: 'bar', vuSize: 120, vuFace: 'cream', vuLight: 1, vuHead: 18, vuScaleMode: 'vu', vuBezel: 'none', vuAspect: 1.8, vuCount: 'auto', vuSideW: 25, vuShape: 'arc', vuPair: true, vuSpeed: 1, vuOverlay: false, vuOverThr: -1, vuOverN: 3, vuDiag: false, vuOverMode: 'auto', scopeGain: 'auto', scopeTrail: 'mid',
 };
-const OWN = new Set(['blendMode', 'keepAwake', 'meterOn', 'meterMin', 'meterHold', 'meterFall', 'meterSeg', 'meterRms', 'meterH', 'meterPos', 'meterColor', 'meterTicks', 'meterStyle', 'viewMode', 'vuScale', 'vuSize', 'vuFace', 'vuLight', 'vuHead', 'vuScaleMode', 'vuBezel', 'vuAspect', 'vuShape', 'vuCount', 'vuSideW', 'vuPair', 'vuSpeed', 'vuOverlay', 'vuOverThr', 'vuOverN', 'vuDiag', 'vuOverMode']);   // 不是 audioMotion 屬性的設定
+const OWN = new Set(['blendMode', 'keepAwake', 'meterOn', 'meterMin', 'meterHold', 'meterFall', 'meterSeg', 'meterRms', 'meterH', 'meterPos', 'meterColor', 'meterTicks', 'meterStyle', 'viewMode', 'vuScale', 'vuSize', 'vuFace', 'vuLight', 'vuHead', 'vuScaleMode', 'vuBezel', 'vuAspect', 'vuShape', 'vuCount', 'vuSideW', 'vuPair', 'vuSpeed', 'vuOverlay', 'vuOverThr', 'vuOverN', 'vuDiag', 'vuOverMode', 'scopeGain', 'scopeTrail']);   // 不是 audioMotion 屬性的設定
 
 const BUILTIN_CATS = [
   { id: 'spec', label: '頻譜', items: {
@@ -304,6 +307,7 @@ const BUILTIN_CATS = [
     '黑底 白紅字': { viewMode: 'vu', vuFace: 'blackwhite', vuBezel: 'none', vuLight: 1, vuShape: 'arc', vuAspect: 1.8 },
     '冰藍背光': { viewMode: 'vu', vuFace: 'iceblue', vuBezel: 'none', vuLight: 1, vuShape: 'arc', vuAspect: 1.8 },
     '橘紅 黑底': { viewMode: 'vu', vuFace: 'blackorange', vuBezel: 'none', vuLight: 1, vuShape: 'arc', vuAspect: 1.8 },
+    '平直 黑底純白': { viewMode: 'vu', vuFace: 'blackmono', vuBezel: 'none', vuLight: 1, vuShape: 'flat', vuAspect: 2.3 },
     '平直 Sony 橘紅': { viewMode: 'vu', vuFace: 'blackorange', vuBezel: 'none', vuLight: 1, vuShape: 'flat', vuAspect: 2.3 },
     '平直 黑底白條': { viewMode: 'vu', vuFace: 'blackwhite', vuBezel: 'none', vuLight: 1, vuShape: 'flat', vuAspect: 2.3 },
     '平直 暖米白': { viewMode: 'vu', vuFace: 'cream', vuBezel: 'none', vuLight: 1, vuShape: 'flat', vuAspect: 2.3 },
@@ -316,6 +320,7 @@ const BUILTIN_CATS = [
     '黑底 白紅字': { meterStyle: 'vu', vuFace: 'blackwhite', vuBezel: 'none', vuLight: 1, vuShape: 'arc', vuAspect: 1.8 },
     '冰藍背光': { meterStyle: 'vu', vuFace: 'iceblue', vuBezel: 'none', vuLight: 1, vuShape: 'arc', vuAspect: 1.8 },
     '橘紅 黑底': { meterStyle: 'vu', vuFace: 'blackorange', vuBezel: 'none', vuLight: 1, vuShape: 'arc', vuAspect: 1.8 },
+    '平直 黑底純白': { meterStyle: 'vu', vuFace: 'blackmono', vuBezel: 'none', vuLight: 1, vuShape: 'flat', vuAspect: 2.3 },
     '平直 Sony 橘紅': { meterStyle: 'vu', vuFace: 'blackorange', vuBezel: 'none', vuLight: 1, vuShape: 'flat', vuAspect: 2.3 },
     '平直 黑底白條': { meterStyle: 'vu', vuFace: 'blackwhite', vuBezel: 'none', vuLight: 1, vuShape: 'flat', vuAspect: 2.3 },
     '條狀表': { meterStyle: 'bar' },
@@ -561,7 +566,7 @@ function meterFrame(t) {
     else if (t - meter.holdT[c] > cfg.meterHold) meter.hold[c] = Math.max(pdb, meter.hold[c] - cfg.meterFall * 2 * dt);
     if (RUN[c] >= cfg.vuOverN) meter.clip[c] = t;                                   // 過載:連續 N 個取樣點 ≥ 門檻
   }
-  (vuShown(cfg) ? drawVU : drawBar)(t);
+  (scopeShown(cfg) ? drawScope : vuShown(cfg) ? drawVU : drawBar)(t);
 }
 function drawBar(t) {
   const cx = meter.cx, vert = isVert(), dpr = meter.dpr || 1;
@@ -651,6 +656,7 @@ const VU_FACES = {
   blackwhite:  { dark: 1, bg: ['#17181b', '#0d0e10', '#060607'], glow: '255,214,150', glowA: 0.16, glowAt: [0.5, 1.05, 0.55], ink: '#f3f4f6', dim: '#9a9fa6', red: '#e0332b', needle: '#ff8f52', needleGlow: '255,140,80', style: 'band', noise: 0.05, vig: 0.50, gloss: 0.05 },
   night:       { dark: 1, lit: 1, bg: ['#0a1317', '#060c0f', '#020507'], glow: '110,225,255', glowA: 0.10, glowAt: [0.5, 1.0, 0.6], ink: '#8de6ff', dim: '#4ea9c6', red: '#ff4040', redGlow: '255,60,60', needle: '#9aeaff', needleGlow: '90,220,255', style: 'line', noise: 0.10, vig: 0.55, gloss: 0.05 },
   iceblue:     { dark: 0, bg: ['#b3eaff', '#8bd9fa', '#58b8f0'], glow: '255,255,255', glowA: 0.40, glowAt: [0.5, 0.55, 0.85], ink: '#0a2a52', dim: '#2f6396', red: '#c4162d', needle: '#0a0f14', style: 'band', noise: 0.03, vig: 0.10, gloss: 0.10 },
+  blackmono:   { dark: 1, lit: 1, bg: ['#0b0b0c', '#060607', '#020202'], glow: '255,255,255', glowA: 0.025, bloomK: 0.22, glowAt: [0.5, 1.0, 0.6], ink: '#f4f4f2', dim: '#a8abb0', red: '#ff4a36', redGlow: '255,70,50', needle: '#ff7a45', needleGlow: '255,120,70', style: 'line', noise: 0.03, vig: 0.55, gloss: 0.03 },
   blackorange: { dark: 1, lit: 1, bg: ['#0c0807', '#070504', '#020101'], glow: '255,100,40', glowA: 0.12, glowAt: [0.5, 1.0, 0.6], ink: '#ff8030', dim: '#c4521f', red: '#ff3b24', redGlow: '255,60,36', needle: '#fff4e8', needleGlow: '255,200,150', needleW: 0.55, style: 'line', noise: 0.06, vig: 0.55, gloss: 0.05 },
 };
 VU_FACES.white = VU_FACES.paperwhite;   // 舊設定相容
@@ -664,13 +670,141 @@ const VU_BEZELS = {
 };
 const SANS = '"Helvetica Neue", "Segoe UI", "SF Pro Text", Arial, "Noto Sans", sans-serif';
 function rrect(x, X, Y, w, h, r) { x.beginPath(); x.moveTo(X + r, Y); x.arcTo(X + w, Y, X + w, Y + h, r); x.arcTo(X + w, Y + h, X, Y + h, r); x.arcTo(X, Y + h, X, Y, r); x.arcTo(X, Y, X + w, Y, r); x.closePath(); }
+
+// ======================================================================
+// 向量示波器(Goniometer)+ 相關度 + 左右平衡
+//   資料取自 Web Audio 分析器(正在播放的那段取樣),畫面與聲音自動對齊。
+//   X = (R − L)/√2、Y = (L + R)/√2:單聲道 = 垂直線,只有 L = 左上 45°,只有 R = 右上 45°,反相 = 水平線。
+// ======================================================================
+const SC = { split: null, anL: null, anR: null, ch: 0, bL: new Float32Array(2048), bR: new Float32Array(2048), tr: null, trS: 0,
+  last: 0, sLL: 0, sRR: 0, sLR: 0, nW: 0, pkL: -120, pkR: -120, gain: 1, rad: 0, any: 0 };
+function scopeAttach() {
+  if (!ac || !gain) return false;
+  const ch = fmt && fmt.channels === 1 ? 1 : 2;
+  if (!SC.split) {
+    SC.split = ac.createChannelSplitter(2); SC.anL = ac.createAnalyser(); SC.anR = ac.createAnalyser();
+    SC.anL.fftSize = SC.anR.fftSize = 2048; SC.anL.smoothingTimeConstant = SC.anR.smoothingTimeConstant = 0;
+    gain.connect(SC.split); SC.ch = 0;
+  }
+  if (SC.ch !== ch) { try { SC.split.disconnect(); } catch {} SC.split.connect(SC.anL, 0); SC.split.connect(SC.anR, ch === 1 ? 0 : 1); SC.ch = ch; }
+  return true;
+}
+function scopeStep(dt, D, dpr, T) {   // 讀取樣 → 更新統計 → 把軌跡畫到離屏畫布(含殘影)
+  const S2 = Math.max(32, Math.round(D * dpr));
+  if (!SC.tr) SC.tr = document.createElement('canvas');
+  if (SC.trS !== S2) { SC.tr.width = SC.tr.height = S2; SC.trS = S2; }
+  if (!scopeAttach()) return;
+  SC.anL.getFloatTimeDomainData(SC.bL); SC.anR.getFloatTimeDomainData(SC.bR);
+  const rate = ac.sampleRate, n = Math.max(64, Math.min(2048, Math.round(dt * rate * 1.2))), o = 2048 - n, bL = SC.bL, bR = SC.bR, K = Math.SQRT1_2;
+  let sll = 0, srr = 0, slr = 0, pl = 0, pr = 0, rmax = 0;
+  for (let i = o; i < 2048; i++) {
+    const l = bL[i], r = bR[i]; sll += l * l; srr += r * r; slr += l * r;
+    const al = l < 0 ? -l : l, ar = r < 0 ? -r : r; if (al > pl) pl = al; if (ar > pr) pr = ar;
+    const x = (r - l) * K, y = (l + r) * K, m = x * x + y * y; if (m > rmax) rmax = m;
+  }
+  rmax = Math.sqrt(rmax);
+  const d = Math.exp(-n / (0.3 * rate));   // 0.3 s 指數平滑(同 VU 的積分時間)
+  SC.sLL = SC.sLL * d + sll; SC.sRR = SC.sRR * d + srr; SC.sLR = SC.sLR * d + slr; SC.nW = SC.nW * d + n;
+  const dbp = v => v > 1e-6 ? 20 * Math.log10(v) : -120;
+  SC.pkL = Math.max(dbp(pl), SC.pkL - 24 * dt); SC.pkR = Math.max(dbp(pr), SC.pkR - 24 * dt);
+  SC.any = rmax > 1e-4 ? 1 : SC.any * Math.exp(-dt / 0.5);
+  // 增益:自動 = 依近 1.5 秒的最大半徑放大(最多 16 倍),固定 = 0 dBFS 單邊滿幅剛好碰到外圈
+  let g = 1;
+  if (cfg.scopeGain !== 'fixed') {
+    SC.rad = Math.max(rmax, SC.rad * Math.exp(-dt / 1.5));
+    const tg = Math.max(1, Math.min(16, 0.92 / Math.max(SC.rad, 1e-4)));
+    SC.gain = tg < SC.gain ? tg : SC.gain + (tg - SC.gain) * (1 - Math.exp(-dt / 0.8)); g = SC.gain;
+  } else SC.gain = 1;
+  const tau = cfg.scopeTrail === 'short' ? 0.07 : cfg.scopeTrail === 'long' ? 0.36 : 0.16, tx = SC.tr.getContext('2d'), R = S2 / 2, Rs = R * 0.98;
+  tx.globalCompositeOperation = 'destination-out'; tx.fillStyle = `rgba(0,0,0,${Math.max(0.05, 1 - Math.exp(-dt / tau))})`; tx.fillRect(0, 0, S2, S2);
+  if (SC.any > 0.02) {
+    tx.globalCompositeOperation = T.dark ? 'lighter' : 'source-over'; tx.strokeStyle = T.ink; tx.globalAlpha = T.dark ? 0.2 : 0.3;
+    tx.lineWidth = Math.max(1, 1.15 * dpr); tx.lineJoin = 'round'; tx.beginPath();
+    for (let i = o; i < 2048; i++) {
+      const l = bL[i], r = bR[i], X = R + (r - l) * K * g * Rs, Y = R - (l + r) * K * g * Rs;
+      i === o ? tx.moveTo(X, Y) : tx.lineTo(X, Y);
+    }
+    tx.stroke(); tx.globalAlpha = 1;
+  }
+  tx.globalCompositeOperation = 'source-over';
+}
+function drawScope(t) {
+  const cx = meter.cx, dpr = meter.dpr || 1, W = meter.w, H = meter.h, T = VU_FACES[cfg.vuFace] || VU_FACES.cream, full = isFull(cfg);
+  cx.setTransform(dpr, 0, 0, dpr, 0, 0); cx.clearRect(0, 0, W, H);
+  const dt = SC.last ? Math.min(0.1, Math.max(0.004, (t - SC.last) / 1000)) : 0.016; SC.last = t;
+  // 面板範圍:全螢幕依「大小」縮放並置中;下方 / 側邊條帶則填滿
+  const kk = full ? Math.max(0.4, Math.min(1, cfg.vuScale / 100)) : 1, mg = full ? 8 : 3, pw = (W - 2 * mg) * kk, ph = (H - 2 * mg) * kk, px0 = (W - pw) / 2, py0 = (H - ph) / 2;
+  if (pw < 30 || ph < 30) return;
+  const small = ph < 150, D = Math.max(40, Math.min(ph * (small ? 0.70 : 0.56), pw * 0.52)), fs = Math.max(8, Math.min(16, ph * 0.042)), sides = pw >= D * 1.9, narrow = pw < fs * 30;
+  scopeStep(dt, D, dpr, T);
+  // 面板底
+  const g = cx.createLinearGradient(0, py0, 0, py0 + ph); g.addColorStop(0, T.bg[0]); g.addColorStop(0.5, T.bg[1]); g.addColorStop(1, T.bg[2]);
+  rrect(cx, px0, py0, pw, ph, Math.min(14, ph * 0.04)); cx.fillStyle = g; cx.fill();
+  cx.save(); rrect(cx, px0, py0, pw, ph, Math.min(14, ph * 0.04)); cx.clip();
+  const vg = cx.createRadialGradient(W / 2, H / 2, Math.min(pw, ph) * 0.3, W / 2, H / 2, Math.max(pw, ph) * 0.75); vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, `rgba(0,0,0,${(T.vig || 0.3) * 0.6})`);
+  cx.fillStyle = vg; cx.fillRect(px0, py0, pw, ph);
+  const cx0 = W / 2, top = py0 + (small ? ph * 0.06 : Math.max(ph * 0.14, (ph - (D + ph * 0.075 + fs * 4.8)) / 2 + fs * 0.6)), cy0 = top + D / 2, r0 = D / 2;
+  cx.textAlign = 'center'; cx.textBaseline = 'middle';
+  if (!small) { cx.font = `600 ${fs * 0.85}px ${SANS}`; cx.fillStyle = T.dim; cx.globalAlpha = 0.8; cx.fillText(SC.ch === 1 ? 'STEREO IMAGE  ·  單聲道來源' : 'STEREO IMAGE  向量示波器', cx0, Math.min(py0 + ph * 0.045 + Math.max(0, top - py0 - ph * 0.14), top - fs * 2.2)); cx.globalAlpha = 1; }
+  // 刻度:外圈 0 dBFS、內圈 −6 / −12 dB、45° 的 L / R 軸、垂直 M 軸、水平 S 軸
+  cx.strokeStyle = T.dim; cx.lineWidth = 1;
+  cx.globalAlpha = 0.55; cx.beginPath(); cx.arc(cx0, cy0, r0, 0, 7); cx.stroke();
+  cx.globalAlpha = 0.28; for (const f of [0.5, 0.25]) { cx.beginPath(); cx.arc(cx0, cy0, r0 * f, 0, 7); cx.stroke(); }
+  cx.globalAlpha = 0.36; cx.beginPath(); cx.moveTo(cx0, cy0 - r0); cx.lineTo(cx0, cy0 + r0); cx.moveTo(cx0 - r0, cy0); cx.lineTo(cx0 + r0, cy0); cx.stroke();
+  cx.globalAlpha = 0.24; const q = r0 * Math.SQRT1_2; cx.beginPath(); cx.moveTo(cx0 - q, cy0 - q); cx.lineTo(cx0 + q, cy0 + q); cx.moveTo(cx0 + q, cy0 - q); cx.lineTo(cx0 - q, cy0 + q); cx.stroke(); cx.globalAlpha = 1;
+  cx.font = `700 ${fs}px ${SANS}`; cx.fillStyle = T.ink;
+  const lq = r0 * 1.0 + fs * 0.9; cx.fillText('L', cx0 - lq * Math.SQRT1_2, cy0 - lq * Math.SQRT1_2); cx.fillText('R', cx0 + lq * Math.SQRT1_2, cy0 - lq * Math.SQRT1_2);
+  cx.font = `500 ${fs * 0.8}px ${SANS}`; cx.fillStyle = T.dim; cx.fillText('M', cx0, cy0 - r0 - fs * 0.8); if (!small) { cx.fillText('S', cx0 + r0 + fs * 0.8, cy0); cx.fillText('S', cx0 - r0 - fs * 0.8, cy0); }
+  cx.save(); cx.beginPath(); cx.arc(cx0, cy0, r0 * 1.02, 0, 7); cx.clip();
+  if (SC.tr && SC.trS) { if (T.dark) { cx.shadowColor = `rgba(${T.glow},.55)`; cx.shadowBlur = 6 * (T.bloomK == null ? 1 : T.bloomK); } cx.drawImage(SC.tr, cx0 - r0, cy0 - r0, D, D); cx.shadowBlur = 0; }
+  cx.restore();
+  // 讀數
+  const mean = v => SC.nW > 0 ? v / SC.nW : 0, mLL = mean(SC.sLL), mRR = mean(SC.sRR), mLR = mean(SC.sLR), live = mLL + mRR > 1e-9;
+  const corr = live ? Math.max(-1, Math.min(1, mLR / Math.sqrt(Math.max(1e-12, mLL * mRR)))) : 0;
+  const dbm = v => v > 1e-10 ? 10 * Math.log10(v) : -120, lDb = dbm(mLL), rDb = dbm(mRR), bal = live ? Math.max(-12, Math.min(12, lDb - rDb)) : 0;
+  const mid = (mLL + mRR + 2 * mLR) / 2, sid = (mLL + mRR - 2 * mLR) / 2, width = live ? 100 * sid / Math.max(1e-12, mid + sid) : 0;
+  // 相關度條 −1 … +1
+  const cw = Math.min(D * 1.35, pw * 0.74), cby = cy0 + r0 + (small ? fs * 1.3 : ph * 0.075), ch = Math.max(6, Math.min(14, ph * 0.03));
+  cx.globalAlpha = 0.3; cx.fillStyle = T.dim; cx.fillRect(cx0 - cw / 2, cby - ch / 2, cw, ch); cx.fillStyle = T.red; cx.globalAlpha = 0.28; cx.fillRect(cx0 - cw / 2, cby - ch / 2, cw / 2, ch); cx.globalAlpha = 1;
+  if (live) { cx.fillStyle = corr >= 0 ? T.ink : T.red; const w = Math.abs(corr) * cw / 2; cx.fillRect(corr >= 0 ? cx0 : cx0 - w, cby - ch / 2, w, ch); }
+  cx.fillStyle = T.ink; cx.fillRect(cx0 - 1, cby - ch * 0.9, 2, ch * 1.8);
+  cx.font = `500 ${fs * 0.8}px ${SANS}`; cx.fillStyle = T.dim; const ty = cby + ch / 2 + fs * 0.85, ctxt = live ? `相關度 ${corr >= 0 ? '+' : '−'}${Math.abs(corr).toFixed(2)}` : '相關度 —';
+  if (small) { cx.textAlign = 'center'; cx.font = `700 ${fs * 0.95}px ${SANS}`; cx.fillStyle = !live ? T.dim : corr < 0 ? T.red : T.ink; cx.fillText(ctxt, cx0, cby + ch / 2 + fs * 1.0); }
+  else {
+    cx.textAlign = 'left'; cx.fillText('−1', cx0 - cw / 2, ty); cx.textAlign = 'center'; cx.fillText('0', cx0, ty); cx.textAlign = 'right'; cx.fillText('+1', cx0 + cw / 2, ty);
+    cx.textAlign = 'center'; cx.font = `700 ${fs}px ${SANS}`; cx.fillStyle = !live ? T.dim : corr < 0 ? T.red : T.ink; cx.fillText(ctxt, cx0, ty + fs * 1.25);
+  }
+  // 平衡 / 寬度
+  const by2 = ty + fs * 2.55;
+  if (!small && by2 + fs < py0 + ph) {
+    cx.font = `500 ${fs * 0.95}px ${SANS}`; cx.fillStyle = T.dim;
+    const bt = !live ? '平衡 —' : Math.abs(bal) < 0.15 ? '平衡 置中' : `平衡 ${bal > 0 ? 'L' : 'R'} ${Math.abs(bal) >= 11.95 ? '≥12' : '+' + Math.abs(bal).toFixed(1)} dB`;
+    const wt = live ? `寬度 ${Math.round(width)}%` : '寬度 —';
+    if (narrow) { cx.textAlign = 'center'; cx.fillText(bt, cx0, by2); cx.fillText(wt, cx0, by2 + fs * 1.3); }
+    else { cx.textAlign = 'right'; cx.fillText(bt, cx0 - fs * 0.8, by2); cx.textAlign = 'left'; cx.fillText(wt, cx0 + fs * 0.8, by2); }
+  }
+  // 左右電平:兩側直條(RMS)+ 峰值刻線;窄版改成文字
+  const colBar = (xc, label, db, pk) => {
+    const bh = D * (small ? 0.80 : 0.92), bw = Math.max(8, Math.min(18, pw * 0.02)), y0 = cy0 + bh / 2, f = v => Math.max(0, Math.min(1, (v + 60) / 60));
+    cx.textAlign = 'center'; cx.font = `700 ${fs * 1.2}px ${SANS}`; cx.fillStyle = T.ink; cx.fillText(label, xc, cy0 - bh / 2 - fs * 1.1);
+    cx.globalAlpha = 0.28; cx.fillStyle = T.dim; cx.fillRect(xc - bw / 2, y0 - bh, bw, bh); cx.globalAlpha = 1;
+    const hh = bh * f(db), nSeg = 30, sg = bh / nSeg;
+    for (let s = 0; s < nSeg; s++) { const yb = y0 - (s + 1) * sg; if ((s + 1) * sg <= hh + 0.5) { cx.fillStyle = s >= nSeg - 4 ? T.red : T.ink; cx.fillRect(xc - bw / 2, yb + 1, bw, sg - 1.5); } }
+    if (pk > -60) { cx.fillStyle = pk > -3 ? T.red : T.ink; cx.fillRect(xc - bw * 0.8, y0 - bh * f(pk) - 1, bw * 1.6, 2); }
+    cx.font = `600 ${fs}px ${SANS}`; cx.fillStyle = T.ink; cx.fillText(db > -90 ? db.toFixed(1) : '—', xc, y0 + fs * 1.1);
+    if (!narrow && !small) { cx.font = `500 ${fs * 0.75}px ${SANS}`; cx.fillStyle = T.dim; cx.fillText('RMS dBFS', xc, y0 + fs * 2.2); }
+  };
+  if (sides) { const free = (pw - D) / 2; colBar(px0 + free / 2, 'L', lDb, SC.pkL); colBar(px0 + pw - free / 2, 'R', rDb, SC.pkR); }
+  else if (!small) { cx.font = `600 ${fs}px ${SANS}`; cx.fillStyle = T.ink; cx.textAlign = 'center'; cx.fillText(`L ${lDb > -90 ? lDb.toFixed(1) : '—'}   R ${rDb > -90 ? rDb.toFixed(1) : '—'}  dBFS`, cx0, Math.min(py0 + ph - fs, by2 + fs * 1.4)); }
+  cx.restore();
+}
 // 平直款:轉軸很遠,指針最大偏角約 22°,幾乎垂直,露出長度穩定(同 Sony 實機)
 const vuGeom = S => {   // 以「視窗」為座標原點:視窗尺寸 Ww×Wh,指針轉軸在視窗下方
   const w = vuA() * S, h = S, m = 0.07 * S, Ww = w - 2 * m, Wh = h - 2 * m, th = VU_SWEEP * Math.PI / 180;
   let R = 0.40 * Ww / Math.sin(th);
   if (R * (1 - Math.cos(th)) > 0.34 * Wh) R = 0.34 * Wh / (1 - Math.cos(th));     // 窗太寬時限制弧度,避免刻度過扁
   if (cfg.vuShape === 'flat') {   // 深色面板 → Sony TA-N77ES 版;淺色面板 → MCQVOX MC-2100 版(比例皆取自實機圖量測,見 scaleFlat / scaleMcq)
-    const mcq = !(VU_FACES[cfg.vuFace] || VU_FACES.cream).dark, tanA = mcq ? 0.87 : FLAT_TAN, yB = (mcq ? 0.435 : 0.516) * Wh, hwB = mcq ? Math.min(0.30 * Ww, 0.62 * Wh) : Math.min(0.33 * Ww, 0.82 * Wh), py = 1.2 * Wh;   // 轉軸固定在視窗下緣之下 0.2 個視窗高;偏角由刻度寬度決定
+    const mcq = !(VU_FACES[cfg.vuFace] || VU_FACES.cream).dark, tanA = mcq ? 0.87 : FLAT_TAN, yB = (mcq ? 0.435 : 0.516) * Wh, hwB = mcq ? Math.min(0.30 * Ww, 0.62 * Wh) : Math.min(0.32 * Ww, 0.78 * Wh), py = 1.2 * Wh;   // 轉軸固定在視窗下緣之下 0.2 個視窗高;偏角由刻度寬度決定
     const tanH = hwB / (py - yB);
     return { w, h, m, Ww, Wh, flat: true, mcq, tanA: tanH, yTip: mcq ? 0.36 * Wh : 0.45 * Wh,   /* 最大偏角時尖端只到刻度中段,不碰數字 */ ys: yB, R: py - yB, px: Ww / 2, py, hw: hwB, yB, hwB };
   }
@@ -745,7 +879,7 @@ function buildWindow(S, dpr, c) {
   const PN = (r, db) => { if (!G.flat) return P(r, db); const q = P(R, db), t = P(R + 1, db), k = (G.ys - (r - R) - q[1]) / (t[1] - q[1]); return [q[0] + (t[0] - q[0]) * k, G.ys - (r - R), q[2]]; };
   const span = (r, fa, fb) => { if (!G.flat) x.arc(px, py, r, vuAng(fa) - Math.PI / 2, vuAng(fb) - Math.PI / 2); else { const p = vuPt(G, fa, r), q = vuPt(G, fb, r); x.moveTo(p[0], p[1]); x.lineTo(q[0], q[1]); } };
   const spanLen = (r, fa, fb) => G.flat ? Math.hypot(...vuPt(G, fb, r).slice(0, 2).map((v, i) => v - vuPt(G, fa, r)[i])) : r * (vuAng(fb) - vuAng(fa));
-  const sh = (bloom, rgb) => { if (bloom) { x.shadowColor = `rgba(${rgb},.95)`; x.shadowBlur = 0.05 * Wh * dpr; } else { x.shadowColor = 'transparent'; x.shadowBlur = 0; } };
+  const sh = (bloom, rgb) => { if (bloom) { const bk = T.bloomK == null ? 1 : T.bloomK; x.shadowColor = `rgba(${rgb},${0.95 * Math.min(1, bk * 1.6)})`; x.shadowBlur = 0.05 * Wh * dpr * bk; } else { x.shadowColor = 'transparent'; x.shadowBlur = 0; } };
   const tick = (db, r0, len, wd, col) => {
     const [x0, y0] = P(r0, db); let [x1, y1] = P(r0 + len, db);
     if (G.flat && r0 === R && len > 0) {   // 平直款:刻度底在直線上,刻度頂落在以轉軸為圓心的圓弧上(與指針尖端同圓)→ 中央刻度較長、兩端較短,指針尖端永遠碰到刻度頂
@@ -755,7 +889,7 @@ function buildWindow(S, dpr, c) {
   // ── 平直款(照 Sony TA-N77ES 實測):所有刻度底在同一條水平線,主/次/細刻度頂各在固定高度的水平線,刻度沿「轉軸→刻度點」放射 → 兩端斜、長度自然較長;
   //    數字在刻度延長線上、排成水平一列(刻度上方);下方一列副刻度(%),數字夾在兩列刻度之間 ──
   const scaleFlat = bloom => {
-    const yB = G.yB, yMaj = 0.36 * Wh, yMin = 0.415 * Wh, yFin = 0.452 * Wh, yN = 0.313 * Wh, yN2 = 0.585 * Wh, yS0 = 0.618 * Wh, yS1 = 0.650 * Wh;
+    const yB = G.yB, yMaj = 0.29 * Wh, yMin = 0.345 * Wh, yFin = 0.385 * Wh, yN = 0.232 * Wh, yN2 = 0.585 * Wh, yS0 = 0.618 * Wh, yS1 = 0.650 * Wh;
     const rg = T.redGlow || T.glow, line = (db, f, y0, y1, wd, col) => { x.strokeStyle = col; x.lineWidth = wd; x.beginPath(); x.moveTo(flatX(G, f, y0), y0); x.lineTo(flatX(G, f, y1), y1); x.stroke(); };
     x.lineCap = 'butt'; x.textAlign = 'center'; x.textBaseline = 'middle';
     let y0 = yB;
@@ -914,14 +1048,14 @@ function drawVU(t) {
     let a, sx, sy, nx, ny, len, ox, oy, tp;
     const k = T.needleW || 1, w0 = Math.max(0.9, (G.flat ? 0.0055 : 0.0085) * Wh * k), w1 = Math.max(0.45, (G.flat ? 0.0035 : 0.0024) * Wh * k), ndl = T.needle;
     if (G.flat) {   // 平直款(Sony):定長剛體,繞視窗下方的轉軸擺動;尖端在最大偏角時剛進入刻度帶、中央較高;一路畫到視窗下緣(硬邊)
-      a = Math.atan((2 * flatU(f) - 1) * G.hwB / (G.py - G.yB)); const Rn = (G.py - G.yTip) / Math.cos(Math.atan(G.tanA));
+      a = Math.atan((2 * flatU(f) - 1) * G.hwB / (G.py - G.yB)); const Rn = G.mcq ? (G.py - G.yTip) / Math.cos(Math.atan(G.tanA)) : 1.02 * Wh;   // Sony:定長 1.02 Wh(中段尖端在刻度頂端上方,最大偏角剛碰到刻度底部)
       sx = Math.sin(a); sy = -Math.cos(a); tp = [px + sx * Rn, py + sy * Rn]; len = Math.max(8, (Wh - tp[1]) / Math.cos(a)); ox = WX + tp[0] - sx * len; oy = WY + tp[1] - sy * len;
     } else {
       tp = vuPt(G, f, R + 0.075 * Wh); a = tp[2]; sx = Math.sin(a); sy = -Math.cos(a); len = Math.hypot(tp[0] - px, tp[1] - py); ox = WX + px; oy = WY + py;
     }
     nx = -sy; ny = sx;
     cx.save(); rrect(cx, WX, WY, Ww, Wh, 0.02 * S); cx.clip();
-    if (T.needleGlow) { cx.shadowColor = `rgba(${T.needleGlow},.9)`; cx.shadowBlur = 0.035 * Wh * dpr; }
+    if (T.needleGlow) { const bk = T.bloomK == null ? 1 : T.bloomK; cx.shadowColor = `rgba(${T.needleGlow},${0.9 * Math.min(1, bk * 1.6)})`; cx.shadowBlur = 0.035 * Wh * dpr * bk; }
     cx.fillStyle = ndl; cx.beginPath();
     cx.moveTo(ox + nx * w0, oy + ny * w0); cx.lineTo(ox + sx * len + nx * w1, oy + sy * len + ny * w1);
     cx.lineTo(ox + sx * len - nx * w1, oy + sy * len - ny * w1); cx.lineTo(ox - nx * w0, oy - ny * w0); cx.closePath(); cx.fill();
@@ -1315,7 +1449,7 @@ $('meter').addEventListener('click', () => { if (Date.now() < suppUntil) return;
     if (Math.abs(dy) >= 70 && Math.abs(dx) < Math.abs(dy) * 0.5) {   // 上下滑:兩區分開 —— 電平表區換 VU 面板 / 電平表顏色;頻譜區換頻譜配色
       suppUntil = Date.now() + 450; const dir = dy < 0 ? 1 : -1, cyc = (arr, cur) => arr[((arr.indexOf(cur) < 0 ? 0 : arr.indexOf(cur)) + dir + arr.length) % arr.length];
       if (st0.reg === 'm' || isFull(cfg)) {
-        if (vuShown(cfg)) { const f = cyc(['cream', 'amber', 'paperwhite', 'iceblue', 'night', 'blackwhite', 'blackorange'], cfg.vuFace); set('vuFace', f); toast('VU 面板:' + ({ cream: '暖米白', amber: '琥珀', paperwhite: '白底 黑紅字', iceblue: '冰藍背光', night: '夜光藍', blackwhite: '黑底 白紅字', blackorange: '橘紅 黑底' })[f]); }
+        if (vuShown(cfg)) { const f = cyc(['cream', 'amber', 'paperwhite', 'iceblue', 'night', 'blackwhite', 'blackmono', 'blackorange'], cfg.vuFace); set('vuFace', f); toast('VU 面板:' + ({ cream: '暖米白', amber: '琥珀', paperwhite: '白底 黑紅字', iceblue: '冰藍背光', night: '夜光藍', blackwhite: '黑底 白紅字', blackmono: '黑底 純白線條', blackorange: '橘紅 黑底' })[f]); }
         else if (cfg.meterOn) { const c = cyc(['sync', 'level', ...GRADS], cfg.meterColor); set('meterColor', c); toast('電平表顏色:' + (c === 'sync' ? '跟隨頻譜' : c === 'level' ? '依電平' : c)); }
       } else {
         const L = cyc(GRADS, cfg.gradientLeft), R = cyc(GRADS, cfg.gradientRight); set('gradientLeft', L); set('gradientRight', R); toast('頻譜配色:' + L);
@@ -1342,7 +1476,7 @@ function showGear() {
 document.addEventListener('pointerdown', () => setTimeout(showGear, 0), { capture: true });
 $('go').addEventListener('click', showGear);
 $('close').onclick = () => { togglePanel(false); showGear(); };
-$('viewbtn').onclick = () => { set('viewMode', cfg.viewMode === 'vu' ? 'spectrum' : 'vu'); renderTab(); toast(cfg.viewMode === 'vu' ? '全螢幕 VU' : '頻譜畫面'); };
+$('viewbtn').onclick = () => { const nx = { spectrum: 'vu', vu: 'scope', scope: 'spectrum' }[cfg.viewMode] || 'vu'; set('viewMode', nx); renderTab(); toast({ vu: '全螢幕 VU', scope: '全螢幕 向量示波器', spectrum: '頻譜畫面' }[nx]); };
 if (!(document.documentElement.requestFullscreen || document.documentElement.webkitRequestFullscreen)) $('fs').hidden = true;   // iPhone Safari 不支援網頁全螢幕 API,隱藏無效按鈕(請改用「加入主畫面」)
 $('fs').onclick = () => {
   const el = document.documentElement;
